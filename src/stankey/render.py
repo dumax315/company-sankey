@@ -18,6 +18,8 @@ GREEN_FLOW = "#75c5a0"
 PINK = "#db0050"
 PINK_FLOW = "#dc6792"
 MUTED = "#5c6872"
+LABEL_CARD = "#ffffff"
+LABEL_CARD_OPACITY = 0.82
 
 
 @dataclass(frozen=True)
@@ -144,6 +146,25 @@ LABELS = {
 }
 
 
+def _label_card(key: str, fact: FinancialFact) -> str:
+    """Return a translucent backing card sized for a two-line fact label."""
+    x, y, anchor = LABELS[key]
+    title_width = len(fact.label) * 8.2
+    value_width = len(_format_fact(fact)) * 7.0
+    width = max(title_width, value_width) + 16
+    if anchor == "middle":
+        left = x - width / 2
+    elif anchor == "end":
+        left = x - width - 8
+    else:
+        left = x - 8
+    return (
+        f'<rect class="label-card" x="{left:.1f}" y="{y - 19:.1f}" '
+        f'width="{width:.1f}" height="47" rx="5" fill="{LABEL_CARD}" '
+        f'fill-opacity="{LABEL_CARD_OPACITY}"/>'
+    )
+
+
 def render_svg(quarter: Quarter, destination: Path) -> None:
     nodes, ribbons = _layout(quarter)
     lines: List[str] = [
@@ -165,6 +186,7 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         lines.append(f'<rect x="{node.x}" y="{node.y}" width="22" height="{node.height:.2f}" rx="2" fill="{node.color}"{dash}/>')
     for key, (x, y, anchor) in LABELS.items():
         fact = quarter.facts[key]
+        lines.append(_label_card(key, fact))
         lines.append(f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
         lines.append(f'<text x="{x}" y="{y + 20}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
