@@ -128,19 +128,19 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     scale = 3.3 / 1000.0
     h = lambda key: max(1.2, f[key].value_millions * scale)
     nodes = {
-        "advertising_revenue": Node("advertising_revenue", 185, 340, h("advertising_revenue"), BLUE),
-        "other_foa_revenue": Node("other_foa_revenue", 185, 575, h("other_foa_revenue"), BLUE),
-        "family_of_apps_revenue": Node("family_of_apps_revenue", 330, 340, h("family_of_apps_revenue"), BLUE),
-        "reality_labs_revenue": Node("reality_labs_revenue", 330, 630, h("reality_labs_revenue"), BLUE),
-        "revenue": Node("revenue", 470, 340, h("revenue"), BLUE),
-        "gross_profit": Node("gross_profit", 630, 320, h("gross_profit"), GREEN),
-        "cost_of_revenue": Node("cost_of_revenue", 630, 560, h("cost_of_revenue"), PINK),
-        "operating_income": Node("operating_income", 765, 300, h("operating_income"), GREEN),
-        "research_and_development": Node("research_and_development", 765, 500, h("research_and_development"), PINK),
-        "general_and_administrative": Node("general_and_administrative", 765, 620, h("general_and_administrative"), PINK),
-        "marketing_and_sales": Node("marketing_and_sales", 765, 700, h("marketing_and_sales"), PINK),
-        "pretax_income": Node("pretax_income", 850, 300, h("pretax_income"), GREEN),
-        "nonoperating_income_expense": Node("nonoperating_income_expense", 850, 420, max(2, abs(h("nonoperating_income_expense"))), PINK),
+        "advertising_revenue": Node("advertising_revenue", 170, 340, h("advertising_revenue"), BLUE),
+        "other_foa_revenue": Node("other_foa_revenue", 170, 575, h("other_foa_revenue"), BLUE),
+        "family_of_apps_revenue": Node("family_of_apps_revenue", 309, 340, h("family_of_apps_revenue"), BLUE),
+        "reality_labs_revenue": Node("reality_labs_revenue", 309, 630, h("reality_labs_revenue"), BLUE),
+        "revenue": Node("revenue", 464, 340, h("revenue"), BLUE),
+        "gross_profit": Node("gross_profit", 627, 340, h("gross_profit"), GREEN),
+        "cost_of_revenue": Node("cost_of_revenue", 627, 560, h("cost_of_revenue"), PINK),
+        "operating_income": Node("operating_income", 792, 340, h("operating_income"), GREEN),
+        "research_and_development": Node("research_and_development", 792, 540, h("research_and_development"), PINK),
+        "general_and_administrative": Node("general_and_administrative", 792, 650, h("general_and_administrative"), PINK),
+        "marketing_and_sales": Node("marketing_and_sales", 792, 735, h("marketing_and_sales"), PINK),
+        "pretax_income": Node("pretax_income", 850, 245, h("pretax_income"), GREEN),
+        "nonoperating_income_expense": Node("nonoperating_income_expense", 850, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
         "net_income": Node("net_income", 900, 290, h("net_income"), GREEN),
         "income_tax": Node("income_tax", 900, 400, h("income_tax"), PINK),
     }
@@ -175,23 +175,23 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     return list(nodes.values()), ribbons
 
 
-LABELS = {
-    "advertising_revenue": (0, 430, "end"),
-    "other_foa_revenue": (0, 605, "end"),
-    "family_of_apps_revenue": (341, 300, "middle"),
-    "reality_labs_revenue": (0, 690, "end"),
-    "revenue": (481, 245, "middle"),
-    "gross_profit": (641, 300, "middle"),
-    "cost_of_revenue": (0, 630, "start"),
-    "operating_income": (776, 245, "middle"),
-    "research_and_development": (0, 520, "start"),
-    "general_and_administrative": (0, 640, "start"),
-    "marketing_and_sales": (0, 720, "start"),
-    "pretax_income": (861, 188, "middle"),
-    "nonoperating_income_expense": (0, 460, "start"),
-    "net_income": (0, 305, "start"),
-    "income_tax": (0, 400, "start"),
-}
+LABEL_KEYS = (
+    "advertising_revenue",
+    "other_foa_revenue",
+    "family_of_apps_revenue",
+    "reality_labs_revenue",
+    "revenue",
+    "gross_profit",
+    "cost_of_revenue",
+    "operating_income",
+    "research_and_development",
+    "general_and_administrative",
+    "marketing_and_sales",
+    "pretax_income",
+    "nonoperating_income_expense",
+    "net_income",
+    "income_tax",
+)
 
 VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
@@ -201,18 +201,16 @@ VERTICAL_TERMINALS = {
 
 
 def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str, str]:
-    _, y, internal_anchor = LABELS[key]
     round_left, round_right = _node_rounding(node, ribbons)
     if round_left and not round_right:
         if VERTICAL_TERMINALS.get(key) == "below":
-            return node.x + 11, y, "middle", "input", "below"
-        return node.x - 12, y, "end", "input", "left"
+            return node.x + 11, node.y + node.height + 30, "middle", "input", "below"
+        return node.x - 12, node.y + node.height / 2 - 2.5, "end", "input", "left"
     if round_right and not round_left:
         if VERTICAL_TERMINALS.get(key) == "below":
-            return node.x + 11, y, "middle", "output", "below"
-        return node.right + 12, y, "start", "output", "right"
-    internal_x, _, _ = LABELS[key]
-    return internal_x, y, internal_anchor, "internal", "above"
+            return node.x + 11, node.y + node.height + 30, "middle", "output", "below"
+        return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
+    return node.x + 11, node.y - 35, "middle", "internal", "above"
 
 
 def _label_card_bounds(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, float, float]:
@@ -293,10 +291,10 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
     nodes_by_key = {node.key: node for node in nodes}
     positions = {
         key: _label_position(key, nodes_by_key[key], ribbons)
-        for key in LABELS
+        for key in LABEL_KEYS
     }
     _validate_label_spacing(quarter, positions)
-    for key in LABELS:
+    for key in LABEL_KEYS:
         fact = quarter.facts[key]
         position = positions[key]
         x, y, anchor, _, _ = position

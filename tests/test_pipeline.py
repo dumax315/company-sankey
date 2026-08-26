@@ -44,6 +44,20 @@ def test_all_accounting_identities_pass(quarter):
     assert all(check.passed for check in checks)
 
 
+def test_labels_follow_node_positions_and_center_when_vertical(quarter):
+    nodes, ribbons = render_module._layout(quarter)
+    for node in nodes:
+        x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons)
+        if placement == "above":
+            assert x == node.x + 11
+            assert y == node.y - 35
+            assert anchor == "middle"
+        elif placement == "below":
+            assert x == node.x + 11
+            assert y == node.y + node.height + 30
+            assert anchor == "middle"
+
+
 def test_material_reconciliation_failure_blocks_render(quarter):
     broken = deepcopy(quarter)
     broken.facts["net_income"].value_millions += 10
