@@ -58,6 +58,21 @@ def test_labels_follow_node_positions_and_center_when_vertical(quarter):
             assert anchor == "middle"
 
 
+def test_primary_profit_spine_stays_horizontal(quarter):
+    _, ribbons = render_module._layout(quarter)
+    primary_edges = {
+        ("advertising_revenue", "family_of_apps_revenue"),
+        ("family_of_apps_revenue", "revenue"),
+        ("revenue", "gross_profit"),
+        ("gross_profit", "operating_income"),
+        ("operating_income", "pretax_income"),
+        ("pretax_income", "net_income"),
+    }
+    for ribbon in ribbons:
+        if (ribbon.source_key, ribbon.target_key) in primary_edges:
+            assert ribbon.source_y == ribbon.target_y
+
+
 def test_material_reconciliation_failure_blocks_render(quarter):
     broken = deepcopy(quarter)
     broken.facts["net_income"].value_millions += 10

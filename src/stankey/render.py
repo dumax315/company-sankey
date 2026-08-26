@@ -128,21 +128,21 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     scale = 3.3 / 1000.0
     h = lambda key: max(1.2, f[key].value_millions * scale)
     nodes = {
-        "advertising_revenue": Node("advertising_revenue", 170, 340, h("advertising_revenue"), BLUE),
-        "other_foa_revenue": Node("other_foa_revenue", 170, 575, h("other_foa_revenue"), BLUE),
-        "family_of_apps_revenue": Node("family_of_apps_revenue", 309, 340, h("family_of_apps_revenue"), BLUE),
-        "reality_labs_revenue": Node("reality_labs_revenue", 309, 630, h("reality_labs_revenue"), BLUE),
-        "revenue": Node("revenue", 464, 340, h("revenue"), BLUE),
-        "gross_profit": Node("gross_profit", 627, 340, h("gross_profit"), GREEN),
-        "cost_of_revenue": Node("cost_of_revenue", 627, 560, h("cost_of_revenue"), PINK),
-        "operating_income": Node("operating_income", 792, 340, h("operating_income"), GREEN),
-        "research_and_development": Node("research_and_development", 792, 540, h("research_and_development"), PINK),
-        "general_and_administrative": Node("general_and_administrative", 792, 650, h("general_and_administrative"), PINK),
-        "marketing_and_sales": Node("marketing_and_sales", 792, 735, h("marketing_and_sales"), PINK),
-        "pretax_income": Node("pretax_income", 850, 245, h("pretax_income"), GREEN),
-        "nonoperating_income_expense": Node("nonoperating_income_expense", 850, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
-        "net_income": Node("net_income", 900, 290, h("net_income"), GREEN),
-        "income_tax": Node("income_tax", 900, 400, h("income_tax"), PINK),
+        "advertising_revenue": Node("advertising_revenue", 155, 340, h("advertising_revenue"), BLUE),
+        "other_foa_revenue": Node("other_foa_revenue", 155, 575, h("other_foa_revenue"), BLUE),
+        "family_of_apps_revenue": Node("family_of_apps_revenue", 249, 340, h("family_of_apps_revenue"), BLUE),
+        "reality_labs_revenue": Node("reality_labs_revenue", 249, 630, h("reality_labs_revenue"), BLUE),
+        "revenue": Node("revenue", 398, 340, h("revenue"), BLUE),
+        "gross_profit": Node("gross_profit", 551, 340, h("gross_profit"), GREEN),
+        "cost_of_revenue": Node("cost_of_revenue", 551, 560, h("cost_of_revenue"), PINK),
+        "operating_income": Node("operating_income", 710, 340, h("operating_income"), GREEN),
+        "research_and_development": Node("research_and_development", 710, 540, h("research_and_development"), PINK),
+        "general_and_administrative": Node("general_and_administrative", 710, 650, h("general_and_administrative"), PINK),
+        "marketing_and_sales": Node("marketing_and_sales", 710, 735, h("marketing_and_sales"), PINK),
+        "pretax_income": Node("pretax_income", 863, 340, h("pretax_income"), GREEN),
+        "nonoperating_income_expense": Node("nonoperating_income_expense", 863, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
+        "net_income": Node("net_income", 900, 340, h("net_income"), GREEN),
+        "income_tax": Node("income_tax", 950, 520, h("income_tax"), PINK),
     }
 
     def width(key: str) -> float:
@@ -197,6 +197,7 @@ VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
     "cost_of_revenue": "below",
     "nonoperating_income_expense": "below",
+    "income_tax": "below",
 }
 
 
