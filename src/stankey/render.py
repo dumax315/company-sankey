@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -39,6 +38,8 @@ class Node:
 
 @dataclass(frozen=True)
 class Ribbon:
+    source_key: str
+    target_key: str
     source_x: float
     source_y: float
     target_x: float
@@ -111,8 +112,8 @@ def _node_path(node: Node, round_left: bool, round_right: bool) -> str:
 
 
 def _node_rounding(node: Node, ribbons: Sequence[Ribbon]) -> Tuple[bool, bool]:
-    has_incoming = any(math.isclose(ribbon.target_x, node.x, abs_tol=0.01) for ribbon in ribbons)
-    has_outgoing = any(math.isclose(ribbon.source_x, node.right, abs_tol=0.01) for ribbon in ribbons)
+    has_incoming = any(ribbon.target_key == node.key for ribbon in ribbons)
+    has_outgoing = any(ribbon.source_key == node.key for ribbon in ribbons)
     return not has_incoming, not has_outgoing
 
 
@@ -121,21 +122,21 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     scale = 3.3 / 1000.0
     h = lambda key: max(1.2, f[key].value_millions * scale)
     nodes = {
-        "advertising_revenue": Node("advertising_revenue", 32, 340, h("advertising_revenue"), BLUE),
-        "other_foa_revenue": Node("other_foa_revenue", 32, 575, h("other_foa_revenue"), BLUE),
-        "family_of_apps_revenue": Node("family_of_apps_revenue", 230, 340, h("family_of_apps_revenue"), BLUE),
-        "reality_labs_revenue": Node("reality_labs_revenue", 230, 630, h("reality_labs_revenue"), BLUE),
-        "revenue": Node("revenue", 410, 340, h("revenue"), BLUE),
-        "gross_profit": Node("gross_profit", 600, 320, h("gross_profit"), GREEN),
-        "cost_of_revenue": Node("cost_of_revenue", 600, 560, h("cost_of_revenue"), PINK),
-        "operating_income": Node("operating_income", 770, 300, h("operating_income"), GREEN),
-        "research_and_development": Node("research_and_development", 770, 500, h("research_and_development"), PINK),
-        "general_and_administrative": Node("general_and_administrative", 770, 620, h("general_and_administrative"), PINK),
-        "marketing_and_sales": Node("marketing_and_sales", 770, 700, h("marketing_and_sales"), PINK),
-        "pretax_income": Node("pretax_income", 875, 300, h("pretax_income"), GREEN),
-        "nonoperating_income_expense": Node("nonoperating_income_expense", 875, 420, max(2, abs(h("nonoperating_income_expense"))), PINK),
-        "net_income": Node("net_income", 980, 290, h("net_income"), GREEN),
-        "income_tax": Node("income_tax", 980, 400, h("income_tax"), PINK),
+        "advertising_revenue": Node("advertising_revenue", 185, 340, h("advertising_revenue"), BLUE),
+        "other_foa_revenue": Node("other_foa_revenue", 185, 575, h("other_foa_revenue"), BLUE),
+        "family_of_apps_revenue": Node("family_of_apps_revenue", 330, 340, h("family_of_apps_revenue"), BLUE),
+        "reality_labs_revenue": Node("reality_labs_revenue", 330, 630, h("reality_labs_revenue"), BLUE),
+        "revenue": Node("revenue", 470, 340, h("revenue"), BLUE),
+        "gross_profit": Node("gross_profit", 630, 320, h("gross_profit"), GREEN),
+        "cost_of_revenue": Node("cost_of_revenue", 630, 560, h("cost_of_revenue"), PINK),
+        "operating_income": Node("operating_income", 765, 300, h("operating_income"), GREEN),
+        "research_and_development": Node("research_and_development", 765, 500, h("research_and_development"), PINK),
+        "general_and_administrative": Node("general_and_administrative", 765, 620, h("general_and_administrative"), PINK),
+        "marketing_and_sales": Node("marketing_and_sales", 765, 700, h("marketing_and_sales"), PINK),
+        "pretax_income": Node("pretax_income", 850, 300, h("pretax_income"), GREEN),
+        "nonoperating_income_expense": Node("nonoperating_income_expense", 850, 420, max(2, abs(h("nonoperating_income_expense"))), PINK),
+        "net_income": Node("net_income", 900, 290, h("net_income"), GREEN),
+        "income_tax": Node("income_tax", 900, 400, h("income_tax"), PINK),
     }
 
     def width(key: str) -> float:
@@ -143,53 +144,64 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
 
     ribbons: List[Ribbon] = []
     # Product revenue -> FoA -> consolidated revenue.
-    ribbons.append(Ribbon(nodes["advertising_revenue"].right, 340, 230, 340, width("advertising_revenue"), BLUE_FLOW))
-    ribbons.append(Ribbon(nodes["other_foa_revenue"].right, 575, 230, 340 + width("advertising_revenue"), width("other_foa_revenue"), BLUE_FLOW))
-    ribbons.append(Ribbon(nodes["family_of_apps_revenue"].right, 340, 410, 340, width("family_of_apps_revenue"), BLUE_FLOW))
-    ribbons.append(Ribbon(nodes["reality_labs_revenue"].right, 630, 410, 340 + width("family_of_apps_revenue"), width("reality_labs_revenue"), BLUE_FLOW))
+    ribbons.append(Ribbon("advertising_revenue", "family_of_apps_revenue", nodes["advertising_revenue"].right, nodes["advertising_revenue"].y, nodes["family_of_apps_revenue"].x, nodes["family_of_apps_revenue"].y, width("advertising_revenue"), BLUE_FLOW))
+    ribbons.append(Ribbon("other_foa_revenue", "family_of_apps_revenue", nodes["other_foa_revenue"].right, nodes["other_foa_revenue"].y, nodes["family_of_apps_revenue"].x, nodes["family_of_apps_revenue"].y + width("advertising_revenue"), width("other_foa_revenue"), BLUE_FLOW))
+    ribbons.append(Ribbon("family_of_apps_revenue", "revenue", nodes["family_of_apps_revenue"].right, nodes["family_of_apps_revenue"].y, nodes["revenue"].x, nodes["revenue"].y, width("family_of_apps_revenue"), BLUE_FLOW))
+    ribbons.append(Ribbon("reality_labs_revenue", "revenue", nodes["reality_labs_revenue"].right, nodes["reality_labs_revenue"].y, nodes["revenue"].x, nodes["revenue"].y + width("family_of_apps_revenue"), width("reality_labs_revenue"), BLUE_FLOW))
     # Consolidated revenue -> gross profit and cost of revenue.
-    ribbons.append(Ribbon(nodes["revenue"].right, 340, 600, 320, width("gross_profit"), GREEN_FLOW))
-    ribbons.append(Ribbon(nodes["revenue"].right, 340 + width("gross_profit"), 600, 560, width("cost_of_revenue"), PINK_FLOW))
+    ribbons.append(Ribbon("revenue", "gross_profit", nodes["revenue"].right, nodes["revenue"].y, nodes["gross_profit"].x, nodes["gross_profit"].y, width("gross_profit"), GREEN_FLOW))
+    ribbons.append(Ribbon("revenue", "cost_of_revenue", nodes["revenue"].right, nodes["revenue"].y + width("gross_profit"), nodes["cost_of_revenue"].x, nodes["cost_of_revenue"].y, width("cost_of_revenue"), PINK_FLOW))
     # Gross profit -> operating result and period expenses.
-    source_y = 320.0
-    for key, target_y, color in (
-        ("operating_income", 300, GREEN_FLOW),
-        ("research_and_development", 500, PINK_FLOW),
-        ("general_and_administrative", 620, PINK_FLOW),
-        ("marketing_and_sales", 700, PINK_FLOW),
+    source_y = nodes["gross_profit"].y
+    for key, color in (
+        ("operating_income", GREEN_FLOW),
+        ("research_and_development", PINK_FLOW),
+        ("general_and_administrative", PINK_FLOW),
+        ("marketing_and_sales", PINK_FLOW),
     ):
-        ribbons.append(Ribbon(nodes["gross_profit"].right, source_y, 770, target_y, width(key), color))
+        ribbons.append(Ribbon("gross_profit", key, nodes["gross_profit"].right, source_y, nodes[key].x, nodes[key].y, width(key), color))
         source_y += width(key)
     # Profit bridge; the negative non-operating value is an outflow.
-    ribbons.append(Ribbon(nodes["operating_income"].right, 300, 875, 300, width("pretax_income"), GREEN_FLOW))
-    ribbons.append(Ribbon(nodes["operating_income"].right, 300 + width("pretax_income"), 875, 420, width("nonoperating_income_expense"), PINK_FLOW))
-    ribbons.append(Ribbon(nodes["pretax_income"].right, 300, 980, 290, width("net_income"), GREEN_FLOW))
-    ribbons.append(Ribbon(nodes["pretax_income"].right, 300 + width("net_income"), 980, 400, width("income_tax"), PINK_FLOW))
+    ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width("pretax_income"), GREEN_FLOW))
+    ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y + width("pretax_income"), nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width("nonoperating_income_expense"), PINK_FLOW))
+    ribbons.append(Ribbon("pretax_income", "net_income", nodes["pretax_income"].right, nodes["pretax_income"].y, nodes["net_income"].x, nodes["net_income"].y, width("net_income"), GREEN_FLOW))
+    ribbons.append(Ribbon("pretax_income", "income_tax", nodes["pretax_income"].right, nodes["pretax_income"].y + width("net_income"), nodes["income_tax"].x, nodes["income_tax"].y, width("income_tax"), PINK_FLOW))
     return list(nodes.values()), ribbons
 
 
 LABELS = {
-    "advertising_revenue": (32, 312, "start"),
-    "other_foa_revenue": (32, 625, "start"),
-    "family_of_apps_revenue": (241, 312, "middle"),
-    "reality_labs_revenue": (241, 680, "middle"),
-    "revenue": (421, 312, "middle"),
-    "gross_profit": (611, 292, "middle"),
-    "cost_of_revenue": (611, 635, "middle"),
-    "operating_income": (781, 272, "middle"),
-    "research_and_development": (781, 485, "middle"),
-    "general_and_administrative": (781, 605, "middle"),
-    "marketing_and_sales": (781, 770, "middle"),
-    "pretax_income": (886, 225, "middle"),
-    "nonoperating_income_expense": (860, 400, "end"),
-    "net_income": (991, 272, "middle"),
-    "income_tax": (1030, 470, "end"),
+    "advertising_revenue": (0, 430, "end"),
+    "other_foa_revenue": (0, 605, "end"),
+    "family_of_apps_revenue": (341, 312, "middle"),
+    "reality_labs_revenue": (0, 655, "end"),
+    "revenue": (481, 312, "middle"),
+    "gross_profit": (641, 292, "middle"),
+    "cost_of_revenue": (0, 580, "start"),
+    "operating_income": (776, 272, "middle"),
+    "research_and_development": (0, 520, "start"),
+    "general_and_administrative": (0, 640, "start"),
+    "marketing_and_sales": (0, 720, "start"),
+    "pretax_income": (861, 225, "middle"),
+    "nonoperating_income_expense": (0, 450, "start"),
+    "net_income": (0, 305, "start"),
+    "income_tax": (0, 400, "start"),
 }
 
 
-def _label_card(key: str, fact: FinancialFact) -> str:
+def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str]:
+    _, y, internal_anchor = LABELS[key]
+    round_left, round_right = _node_rounding(node, ribbons)
+    if round_left and not round_right:
+        return node.x - 12, y, "end", "input"
+    if round_right and not round_left:
+        return node.right + 12, y, "start", "output"
+    internal_x, _, _ = LABELS[key]
+    return internal_x, y, internal_anchor, "internal"
+
+
+def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str, str]) -> str:
     """Return a translucent backing card sized for a two-line fact label."""
-    x, y, anchor = LABELS[key]
+    x, y, anchor, placement = position
     title_width = len(fact.label) * 8.2
     value_width = len(_format_fact(fact)) * 7.0
     width = max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
@@ -201,7 +213,8 @@ def _label_card(key: str, fact: FinancialFact) -> str:
         left = x - LABEL_CARD_PADDING_X
     left = max(16, min(left, WIDTH - width - 16))
     return (
-        f'<rect class="label-card" x="{left:.1f}" y="{y - 20:.1f}" '
+        f'<rect class="label-card" data-key="{key}" data-placement="{placement}" '
+        f'x="{left:.1f}" y="{y - 20:.1f}" '
         f'width="{width:.1f}" height="45" rx="5" fill="{LABEL_CARD}" '
         f'fill-opacity="{LABEL_CARD_OPACITY}"/>'
     )
@@ -231,9 +244,11 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
             f'data-round-right="{str(round_right).lower()}" d="{_node_path(node, round_left, round_right)}" '
             f'fill="{node.color}"{dash}/>'
         )
-    for key, (x, y, anchor) in LABELS.items():
+    nodes_by_key = {node.key: node for node in nodes}
+    for key in LABELS:
         fact = quarter.facts[key]
-        lines.append(_label_card(key, fact))
+        x, y, anchor, placement = _label_position(key, nodes_by_key[key], ribbons)
+        lines.append(_label_card(key, fact, (x, y, anchor, placement)))
         lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
         lines.append(f'<text x="{x}" y="{y + 19}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
