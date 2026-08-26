@@ -23,6 +23,7 @@ LABEL_CARD = "#ffffff"
 LABEL_CARD_OPACITY = 0.82
 LABEL_CARD_PADDING_X = 10
 LABEL_CARD_GAP = 10
+GEOMETRY_EPSILON = 0.01
 
 
 @dataclass(frozen=True)
@@ -128,8 +129,8 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     scale = 3.3 / 1000.0
     h = lambda key: max(1.2, f[key].value_millions * scale)
     nodes = {
-        "advertising_revenue": Node("advertising_revenue", 155, 340, h("advertising_revenue"), BLUE),
-        "other_foa_revenue": Node("other_foa_revenue", 155, 575, h("other_foa_revenue"), BLUE),
+        "advertising_revenue": Node("advertising_revenue", 180, 340, h("advertising_revenue"), BLUE),
+        "other_foa_revenue": Node("other_foa_revenue", 180, 575, h("other_foa_revenue"), BLUE),
         "family_of_apps_revenue": Node("family_of_apps_revenue", 249, 340, h("family_of_apps_revenue"), BLUE),
         "reality_labs_revenue": Node("reality_labs_revenue", 249, 630, h("reality_labs_revenue"), BLUE),
         "revenue": Node("revenue", 398, 340, h("revenue"), BLUE),
@@ -141,8 +142,8 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         "marketing_and_sales": Node("marketing_and_sales", 710, 735, h("marketing_and_sales"), PINK),
         "pretax_income": Node("pretax_income", 863, 340, h("pretax_income"), GREEN),
         "nonoperating_income_expense": Node("nonoperating_income_expense", 863, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
-        "net_income": Node("net_income", 900, 340, h("net_income"), GREEN),
-        "income_tax": Node("income_tax", 950, 520, h("income_tax"), PINK),
+        "net_income": Node("net_income", 950, 340, h("net_income"), GREEN),
+        "income_tax": Node("income_tax", 938, 520, h("income_tax"), PINK),
     }
 
     def width(key: str) -> float:
@@ -197,6 +198,7 @@ VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
     "cost_of_revenue": "below",
     "nonoperating_income_expense": "below",
+    "net_income": "below",
     "income_tax": "below",
 }
 
@@ -214,18 +216,32 @@ def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[fl
     return node.x + 11, node.y - 35, "middle", "internal", "above"
 
 
-def _label_card_bounds(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, float, float]:
-    x, y, anchor, _, _ = position
+def _label_card_width(fact: FinancialFact) -> float:
     title_width = len(fact.label) * 8.2
     value_width = len(_format_fact(fact)) * 7.0
-    width = max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
+    return max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
+
+
+def _label_left(x: float, anchor: str, width: float) -> float:
     if anchor == "middle":
-        left = x - width / 2
-    elif anchor == "end":
-        left = x - width + LABEL_CARD_PADDING_X
-    else:
-        left = x - LABEL_CARD_PADDING_X
-    left = max(16, min(left, WIDTH - width - 16))
+        return x - width / 2
+    if anchor == "end":
+        return x - width + LABEL_CARD_PADDING_X
+    return x - LABEL_CARD_PADDING_X
+
+
+def _fit_label_to_canvas(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, str, str, str]:
+    x, y, anchor, _, _ = position
+    width = _label_card_width(fact)
+    desired_left = _label_left(x, anchor, width)
+    fitted_left = max(16, min(desired_left, WIDTH - width - 16))
+    return x + fitted_left - desired_left, y, anchor, position[3], position[4]
+
+
+def _label_card_bounds(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, float, float]:
+    x, y, anchor, _, _ = position
+    width = _label_card_width(fact)
+    left = _label_left(x, anchor, width)
     return left, y - 20, width, 45
 
 
@@ -254,17 +270,28 @@ def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
         for right_key in keys[index + 1 :]:
             right_x, right_y, right_width, right_height = bounds[right_key]
             separated = (
-                left_right + LABEL_CARD_GAP <= right_x
-                or right_x + right_width + LABEL_CARD_GAP <= left_x
-                or left_bottom + LABEL_CARD_GAP <= right_y
-                or right_y + right_height + LABEL_CARD_GAP <= left_y
+                left_right + LABEL_CARD_GAP <= right_x + GEOMETRY_EPSILON
+                or right_x + right_width + LABEL_CARD_GAP <= left_x + GEOMETRY_EPSILON
+                or left_bottom + LABEL_CARD_GAP <= right_y + GEOMETRY_EPSILON
+                or right_y + right_height + LABEL_CARD_GAP <= left_y + GEOMETRY_EPSILON
             )
             if not separated:
                 raise ValueError(f"Label cards are too close: {left_key} and {right_key}")
 
 
+def _validate_terminal_order(nodes: Sequence[Node], ribbons: Sequence[Ribbon]) -> None:
+    terminals = [
+        node for node in nodes
+        if not any(ribbon.source_key == node.key for ribbon in ribbons)
+    ]
+    net_income = next(node for node in terminals if node.key == "net_income")
+    if any(node.x >= net_income.x for node in terminals if node.key != "net_income"):
+        raise ValueError("Net income must be the rightmost terminal node")
+
+
 def render_svg(quarter: Quarter, destination: Path) -> None:
     nodes, ribbons = _layout(quarter)
+    _validate_terminal_order(nodes, ribbons)
     quarter_label = f"Q{quarter.fiscal_quarter} FY{quarter.fiscal_year}"
     source = quarter.facts["revenue"].provenance[0]
     lines: List[str] = [
@@ -291,7 +318,10 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         )
     nodes_by_key = {node.key: node for node in nodes}
     positions = {
-        key: _label_position(key, nodes_by_key[key], ribbons)
+        key: _fit_label_to_canvas(
+            quarter.facts[key],
+            _label_position(key, nodes_by_key[key], ribbons),
+        )
         for key in LABEL_KEYS
     }
     _validate_label_spacing(quarter, positions)
