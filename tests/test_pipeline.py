@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 import stankey.render as render_module
-from stankey.cli import DEFAULT_CONFIG, DEFAULT_FIXTURE, generate
+from stankey.cli import (
+    DEFAULT_CONFIG,
+    DEFAULT_FIXTURE,
+    generate,
+    generate_series,
+    quarter_sequence,
+)
 from stankey.normalize import normalize_meta
 from stankey.sec import load_json
 from stankey.validate import ReconciliationError, validate_quarter
@@ -113,3 +119,55 @@ def test_rasterizer_consumes_the_exact_saved_svg(tmp_path: Path, monkeypatch):
     assert "svg_string" not in call
     assert call["width"] == call["height"] == 2048
     assert png_path.read_bytes() == b"rendered-from-canonical-svg"
+
+
+def test_quarter_sequence_runs_newest_first_across_years():
+    assert quarter_sequence("2026Q2", 5) == [
+        "2026Q2",
+        "2026Q1",
+        "2025Q4",
+        "2025Q3",
+        "2025Q2",
+    ]
+
+
+def test_generate_series_uses_one_subdirectory_per_quarter(tmp_path: Path):
+    args = argparse.Namespace(
+        ticker="META",
+        quarters=1,
+        from_quarter=None,
+        output_dir=tmp_path,
+        fetch_sec=False,
+        user_agent=None,
+        config=DEFAULT_CONFIG,
+        png_size=3240,
+    )
+    series_manifest = generate_series(args)
+    quarter_dir = tmp_path / "2026Q2"
+    assert (quarter_dir / "01_META_2026_Q2.png").is_file()
+    assert (quarter_dir / "01_META_2026_Q2.svg").is_file()
+    assert (quarter_dir / "01_META_2026_Q2.json").is_file()
+    payload = json.loads(series_manifest.read_text(encoding="utf-8"))
+    assert payload["quarters"] == [
+        {
+            "quarter": "2026Q2",
+            "directory": "2026Q2",
+            "manifest": "2026Q2/01_META_2026_Q2.json",
+        }
+    ]
+
+
+def test_generate_series_preflights_missing_quarters_before_writing(tmp_path: Path):
+    args = argparse.Namespace(
+        ticker="META",
+        quarters=2,
+        from_quarter=None,
+        output_dir=tmp_path,
+        fetch_sec=False,
+        user_agent=None,
+        config=DEFAULT_CONFIG,
+        png_size=3240,
+    )
+    with pytest.raises(ValueError, match="2026Q1"):
+        generate_series(args)
+    assert list(tmp_path.iterdir()) == []

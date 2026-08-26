@@ -13,8 +13,26 @@ creates an isolated `.venv` from the checked-in lockfile.
 ```bash
 uv sync
 uv run stankey generate META --quarter 2026Q2
+uv run stankey generate-series META --quarters 1
 uv run pytest
 ```
+
+`generate-series` starts at the latest configured reported quarter and walks
+backward in fiscal-quarter order. Each quarter gets an isolated output folder:
+
+```text
+outputs/meta/
+  2026Q2/
+    01_META_2026_Q2.svg
+    01_META_2026_Q2.png
+    01_META_2026_Q2.json
+  META_2026Q2_1_quarters.json
+```
+
+Use `--from-quarter 2025Q4` to reproduce a range from a specific point. The
+command validates that every requested quarter has configured source data
+before creating any files, so a partially configured series cannot produce a
+partial carousel.
 
 The PNG is rasterized from the exact saved SVG with resvg, so there is only
 one layout implementation. Override the square master size when needed, for
@@ -37,7 +55,8 @@ are cached under `data/raw/meta/0001628280-26-050705/` and are not committed.
 
 ## MVP limitations
 
-- Only `META 2026Q2` is configured; this is deliberately one vertical slice.
+- Only `META 2026Q2` is currently configured; series requests greater than one
+  quarter fail preflight until historical source configurations are added.
 - Values are GAAP, USD millions, and from the unaudited Form 10-Q filed July 30,
   2026. The fixture is an extracted subset, not a copy of the complete filing.
 - Gross profit is derived because Meta does not report it as a separate fact.

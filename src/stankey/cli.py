@@ -42,13 +42,60 @@ def _build_parser() -> argparse.ArgumentParser:
         default=3240,
         help="square PNG master size in pixels (default: 3240)",
     )
+    series = subparsers.add_parser(
+        "generate-series",
+        help="generate the latest reported quarter and N-1 preceding quarters",
+    )
+    series.add_argument("ticker", help="company ticker (MVP: META)")
+    series.add_argument("--quarters", type=int, required=True, help="number of quarters to generate")
+    series.add_argument(
+        "--from-quarter",
+        help="newest fiscal quarter, e.g. 2026Q2 (default: latest configured quarter)",
+    )
+    series.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "meta")
+    series.add_argument("--fetch-sec", action="store_true", help="download and parse each official SEC XBRL instance")
+    series.add_argument("--user-agent", default=os.environ.get("SEC_USER_AGENT"), help="SEC-compliant identity with email")
+    series.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    series.add_argument(
+        "--png-size",
+        type=int,
+        default=3240,
+        help="square PNG master size in pixels (default: 3240)",
+    )
     return parser
 
 
+def quarter_sequence(start: str, count: int) -> list:
+    if count <= 0:
+        raise ValueError("--quarters must be a positive integer")
+    normalized = start.upper()
+    if len(normalized) != 6 or normalized[4] != "Q" or not normalized[:4].isdigit() or normalized[5] not in "1234":
+        raise ValueError(f"Invalid fiscal quarter: {start}; expected YYYYQ1 through YYYYQ4")
+    year = int(normalized[:4])
+    quarter = int(normalized[5])
+    result = []
+    for _ in range(count):
+        result.append(f"{year}Q{quarter}")
+        quarter -= 1
+        if quarter == 0:
+            year -= 1
+            quarter = 4
+    return result
+
+
+def _latest_configured_quarter(config: dict) -> str:
+    return max(config["quarters"], key=lambda key: (int(key[:4]), int(key[5])))
+
+
 def generate(args: argparse.Namespace) -> Path:
-    if args.ticker.upper() != "META" or args.quarter.upper() != "2026Q2":
-        raise ValueError("Phase 1 supports only: META --quarter 2026Q2")
+    if args.ticker.upper() != "META":
+        raise ValueError("The current generator supports only META")
     config = load_json(args.config)
+    quarter_key = args.quarter.upper()
+    if quarter_key not in config["quarters"]:
+        raise ValueError(f"No configured source data for {args.ticker.upper()} {quarter_key}")
+    quarter_config = config["quarters"][quarter_key]
+    source_config = quarter_config["source"]
     input_mode = "checked-in SEC XBRL fact fixture"
     if args.fetch_sec:
         if not args.user_agent:
@@ -58,25 +105,30 @@ def generate(args: argparse.Namespace) -> Path:
             / "data"
             / "raw"
             / "meta"
-            / config["accession"]
-            / config["document"]
+            / source_config["accession"]
+            / source_config["document"]
         )
-        download_xbrl(config["source_url"], raw_path, args.user_agent)
+        download_xbrl(source_config["url"], raw_path, args.user_agent)
         source = {
-            "url": config["source_url"],
-            "accession": config["accession"],
-            "document": config["document"],
-            "filing_date": config["filing_date"],
+            "url": source_config["url"],
+            "accession": source_config["accession"],
+            "document": source_config["document"],
+            "filing_date": source_config["filing_date"],
         }
         extracted = parse_xbrl(raw_path, source)
         input_mode = "downloaded SEC XBRL instance"
     else:
-        extracted = load_json(DEFAULT_FIXTURE)
+        fixture_path = PROJECT_ROOT / quarter_config["fixture"]
+        if not fixture_path.is_file():
+            raise ValueError(f"Configured fixture does not exist for {quarter_key}: {fixture_path}")
+        extracted = load_json(fixture_path)
 
-    quarter = normalize_meta(config, extracted, args.quarter.upper())
+    quarter = normalize_meta(config, extracted, quarter_key)
     checks = validate_quarter(quarter)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    stem = "01_META_2026_Q2"
+    year, fiscal_quarter = quarter_key.split("Q")
+    sequence_index = getattr(args, "sequence_index", 1)
+    stem = f"{sequence_index:02d}_{args.ticker.upper()}_{year}_Q{fiscal_quarter}"
     svg_path = args.output_dir / f"{stem}.svg"
     png_path = args.output_dir / f"{stem}.png"
     manifest_path = args.output_dir / f"{stem}.json"
@@ -125,16 +177,58 @@ def generate(args: argparse.Namespace) -> Path:
     return manifest_path
 
 
+def generate_series(args: argparse.Namespace) -> Path:
+    if args.ticker.upper() != "META":
+        raise ValueError("The current generator supports only META")
+    config = load_json(args.config)
+    start = args.from_quarter.upper() if args.from_quarter else _latest_configured_quarter(config)
+    quarters = quarter_sequence(start, args.quarters)
+    missing = [quarter for quarter in quarters if quarter not in config["quarters"]]
+    if missing:
+        raise ValueError(
+            "Missing configured source data for requested quarter(s): " + ", ".join(missing)
+        )
+
+    manifests = []
+    for index, quarter_key in enumerate(quarters, start=1):
+        quarter_args = argparse.Namespace(**vars(args))
+        quarter_args.command = "generate"
+        quarter_args.quarter = quarter_key
+        quarter_args.sequence_index = index
+        quarter_args.output_dir = args.output_dir / quarter_key
+        manifests.append(generate(quarter_args))
+
+    series_manifest = args.output_dir / f"{args.ticker.upper()}_{start}_{len(quarters)}_quarters.json"
+    payload = {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "ticker": args.ticker.upper(),
+        "newest_quarter": start,
+        "quarter_count": len(quarters),
+        "quarters": [
+            {
+                "quarter": quarter,
+                "directory": quarter,
+                "manifest": str(manifest.relative_to(args.output_dir)),
+            }
+            for quarter, manifest in zip(quarters, manifests)
+        ],
+    }
+    series_manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return series_manifest
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
-        manifest = generate(args)
+        manifest = generate_series(args) if args.command == "generate-series" else generate(args)
     except (ValueError, ReconciliationError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"Generated {manifest.parent / (manifest.stem + '.svg')}")
-    print(f"Generated {manifest.parent / (manifest.stem + '.png')}")
+    if args.command == "generate":
+        print(f"Generated {manifest.parent / (manifest.stem + '.svg')}")
+        print(f"Generated {manifest.parent / (manifest.stem + '.png')}")
     print(f"Generated {manifest}")
     return 0
 

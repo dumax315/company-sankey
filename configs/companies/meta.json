@@ -2,16 +2,20 @@
   "company": "Meta Platforms, Inc.",
   "ticker": "META",
   "cik": "0001326801",
-  "accession": "0001628280-26-050705",
-  "document": "meta-20260630_htm.xml",
-  "filing_date": "2026-07-30",
-  "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026050705/meta-20260630_htm.xml",
   "quarters": {
     "2026Q2": {
       "start_date": "2026-04-01",
       "end_date": "2026-06-30",
       "prior_start_date": "2025-04-01",
-      "prior_end_date": "2025-06-30"
+      "prior_end_date": "2025-06-30",
+      "fixture": "data/fixtures/meta_2026_q2_sec_xbrl.json",
+      "source": {
+        "form": "10-Q",
+        "accession": "0001628280-26-050705",
+        "document": "meta-20260630_htm.xml",
+        "filing_date": "2026-07-30",
+        "url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026050705/meta-20260630_htm.xml"
+      }
     }
   },
   "selectors": {

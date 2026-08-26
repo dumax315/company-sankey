@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from html import escape
 from pathlib import Path
 from typing import List, Sequence, Tuple
@@ -60,6 +61,10 @@ def _format_fact(fact: FinancialFact) -> str:
     suffix = "" if yoy is None else f" • {yoy:+.0f}% Y/Y"
     marker = "*" if fact.status == "derived" else ""
     return value + suffix + marker
+
+
+def _display_date(iso_date: str) -> str:
+    return date.fromisoformat(iso_date).strftime("%b %d, %Y").replace(" 0", " ")
 
 
 def _ribbon_path(ribbon: Ribbon) -> str:
@@ -261,16 +266,18 @@ def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
 
 def render_svg(quarter: Quarter, destination: Path) -> None:
     nodes, ribbons = _layout(quarter)
+    quarter_label = f"Q{quarter.fiscal_quarter} FY{quarter.fiscal_year}"
+    source = quarter.facts["revenue"].provenance[0]
     lines: List[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="title desc">',
-        "<title id=\"title\">Meta Q2 2026 income statement Sankey</title>",
-        "<desc id=\"desc\">Revenue and expense flows in USD billions based on Meta's SEC Form 10-Q.</desc>",
+        f'<title id="title">{escape(quarter.ticker)} {quarter_label} income statement Sankey</title>',
+        f'<desc id="desc">Revenue and expense flows in USD billions based on {escape(quarter.company)} SEC filing data.</desc>',
         f'<rect width="1080" height="1080" rx="28" fill="{BACKGROUND}"/>',
-        f'<text x="42" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="58" fill="{INK}">META</text>',
-        f'<text x="42" y="128" font-family="Arial,sans-serif" font-weight="700" font-size="28" fill="{GREEN}">Q2 FY2026</text>',
+        f'<text x="42" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="58" fill="{INK}">{escape(quarter.ticker)}</text>',
+        f'<text x="42" y="128" font-family="Arial,sans-serif" font-weight="700" font-size="28" fill="{GREEN}">{quarter_label}</text>',
         f'<text x="204" y="128" font-family="Arial,sans-serif" font-size="28" fill="{INK}">Income statement</text>',
-        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended Jun 30, 2026 • USD billions • GAAP • unaudited</text>',
+        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended {_display_date(quarter.end_date)} • USD billions • GAAP • unaudited</text>',
     ]
     for ribbon in ribbons:
         lines.append(f'<path class="ribbon" d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
@@ -299,7 +306,7 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
     lines.extend(
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',
-            f'<text x="42" y="980" font-family="Arial,sans-serif" font-size="14" fill="{INK}">Source: Meta Form 10-Q filed Jul 30, 2026 • SEC accession 0001628280-26-050705</text>',
+            f'<text x="42" y="980" font-family="Arial,sans-serif" font-size="14" fill="{INK}">Source: {escape(quarter.company)} SEC filing dated {_display_date(source.filing_date)} • accession {escape(source.accession)}</text>',
             f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. Gross profit* is derived. Segment labels use Meta-specific XBRL dimensions.</text>',
             f'<text x="42" y="1028" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Values mapped from filing XBRL; flows may omit disclosures outside this income-statement bridge.</text>',
             "</svg>",
