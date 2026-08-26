@@ -66,12 +66,12 @@ def test_generate_writes_square_assets_and_auditable_manifest(tmp_path: Path):
     assert 'data-key="net_income" data-round-left="false" data-round-right="true"' in svg
     assert svg.count('class="label-card"') == 15
     assert 'fill-opacity="0.82"' in svg
-    assert svg.count('data-placement="input"') == 3
-    assert svg.count('data-placement="output"') == 7
-    assert 'data-key="advertising_revenue" data-placement="input"' in svg
-    assert 'data-key="reality_labs_revenue" data-placement="input"' in svg
-    assert 'data-key="net_income" data-placement="output"' in svg
-    assert 'data-key="income_tax" data-placement="output"' in svg
+    assert svg.count('data-role="input"') == 3
+    assert svg.count('data-role="output"') == 7
+    assert 'data-key="advertising_revenue" data-role="input" data-placement="left"' in svg
+    assert 'data-key="reality_labs_revenue" data-role="input" data-placement="below"' in svg
+    assert 'data-key="cost_of_revenue" data-role="output" data-placement="below"' in svg
+    assert 'data-key="net_income" data-role="output" data-placement="right"' in svg
     assert 'viewBox="0 0 1080 1080"' in svg
     assert "See adjacent JSON manifest" not in svg
     png_header = png_path.read_bytes()[:24]

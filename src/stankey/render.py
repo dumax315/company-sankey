@@ -21,6 +21,7 @@ MUTED = "#5c6872"
 LABEL_CARD = "#ffffff"
 LABEL_CARD_OPACITY = 0.82
 LABEL_CARD_PADDING_X = 10
+LABEL_CARD_GAP = 10
 
 
 @dataclass(frozen=True)
@@ -172,36 +173,45 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
 LABELS = {
     "advertising_revenue": (0, 430, "end"),
     "other_foa_revenue": (0, 605, "end"),
-    "family_of_apps_revenue": (341, 312, "middle"),
-    "reality_labs_revenue": (0, 655, "end"),
-    "revenue": (481, 312, "middle"),
-    "gross_profit": (641, 292, "middle"),
-    "cost_of_revenue": (0, 580, "start"),
-    "operating_income": (776, 272, "middle"),
+    "family_of_apps_revenue": (341, 300, "middle"),
+    "reality_labs_revenue": (0, 690, "end"),
+    "revenue": (481, 245, "middle"),
+    "gross_profit": (641, 300, "middle"),
+    "cost_of_revenue": (0, 630, "start"),
+    "operating_income": (776, 245, "middle"),
     "research_and_development": (0, 520, "start"),
     "general_and_administrative": (0, 640, "start"),
     "marketing_and_sales": (0, 720, "start"),
-    "pretax_income": (861, 225, "middle"),
-    "nonoperating_income_expense": (0, 450, "start"),
+    "pretax_income": (861, 188, "middle"),
+    "nonoperating_income_expense": (0, 460, "start"),
     "net_income": (0, 305, "start"),
     "income_tax": (0, 400, "start"),
 }
 
+VERTICAL_TERMINALS = {
+    "reality_labs_revenue": "below",
+    "cost_of_revenue": "below",
+    "nonoperating_income_expense": "below",
+}
 
-def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str]:
+
+def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str, str]:
     _, y, internal_anchor = LABELS[key]
     round_left, round_right = _node_rounding(node, ribbons)
     if round_left and not round_right:
-        return node.x - 12, y, "end", "input"
+        if VERTICAL_TERMINALS.get(key) == "below":
+            return node.x + 11, y, "middle", "input", "below"
+        return node.x - 12, y, "end", "input", "left"
     if round_right and not round_left:
-        return node.right + 12, y, "start", "output"
+        if VERTICAL_TERMINALS.get(key) == "below":
+            return node.x + 11, y, "middle", "output", "below"
+        return node.right + 12, y, "start", "output", "right"
     internal_x, _, _ = LABELS[key]
-    return internal_x, y, internal_anchor, "internal"
+    return internal_x, y, internal_anchor, "internal", "above"
 
 
-def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str, str]) -> str:
-    """Return a translucent backing card sized for a two-line fact label."""
-    x, y, anchor, placement = position
+def _label_card_bounds(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, float, float]:
+    x, y, anchor, _, _ = position
     title_width = len(fact.label) * 8.2
     value_width = len(_format_fact(fact)) * 7.0
     width = max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
@@ -212,12 +222,41 @@ def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str
     else:
         left = x - LABEL_CARD_PADDING_X
     left = max(16, min(left, WIDTH - width - 16))
+    return left, y - 20, width, 45
+
+
+def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> str:
+    """Return a translucent backing card sized for a two-line fact label."""
+    _, _, _, role, placement = position
+    left, top, width, height = _label_card_bounds(fact, position)
     return (
-        f'<rect class="label-card" data-key="{key}" data-placement="{placement}" '
-        f'x="{left:.1f}" y="{y - 20:.1f}" '
-        f'width="{width:.1f}" height="45" rx="5" fill="{LABEL_CARD}" '
+        f'<rect class="label-card" data-key="{key}" data-role="{role}" data-placement="{placement}" '
+        f'x="{left:.1f}" y="{top:.1f}" '
+        f'width="{width:.1f}" height="{height}" rx="5" fill="{LABEL_CARD}" '
         f'fill-opacity="{LABEL_CARD_OPACITY}"/>'
     )
+
+
+def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
+    bounds = {
+        key: _label_card_bounds(quarter.facts[key], position)
+        for key, position in positions.items()
+    }
+    keys = list(bounds)
+    for index, left_key in enumerate(keys):
+        left_x, left_y, left_width, left_height = bounds[left_key]
+        left_right = left_x + left_width
+        left_bottom = left_y + left_height
+        for right_key in keys[index + 1 :]:
+            right_x, right_y, right_width, right_height = bounds[right_key]
+            separated = (
+                left_right + LABEL_CARD_GAP <= right_x
+                or right_x + right_width + LABEL_CARD_GAP <= left_x
+                or left_bottom + LABEL_CARD_GAP <= right_y
+                or right_y + right_height + LABEL_CARD_GAP <= left_y
+            )
+            if not separated:
+                raise ValueError(f"Label cards are too close: {left_key} and {right_key}")
 
 
 def render_svg(quarter: Quarter, destination: Path) -> None:
@@ -245,10 +284,16 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
             f'fill="{node.color}"{dash}/>'
         )
     nodes_by_key = {node.key: node for node in nodes}
+    positions = {
+        key: _label_position(key, nodes_by_key[key], ribbons)
+        for key in LABELS
+    }
+    _validate_label_spacing(quarter, positions)
     for key in LABELS:
         fact = quarter.facts[key]
-        x, y, anchor, placement = _label_position(key, nodes_by_key[key], ribbons)
-        lines.append(_label_card(key, fact, (x, y, anchor, placement)))
+        position = positions[key]
+        x, y, anchor, _, _ = position
+        lines.append(_label_card(key, fact, position))
         lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
         lines.append(f'<text x="{x}" y="{y + 19}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
