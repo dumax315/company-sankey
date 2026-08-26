@@ -17,6 +17,10 @@ from .validate import ReconciliationError, checks_to_dict, validate_quarter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "companies" / "meta.json"
+COMPANY_CONFIGS = {
+    "META": DEFAULT_CONFIG,
+    "AMZN": PROJECT_ROOT / "configs" / "companies" / "amazon.json",
+}
 DEFAULT_FIXTURE = PROJECT_ROOT / "data" / "fixtures" / "meta_2026_q2_sec_xbrl.json"
 HISTORICAL_REVENUE_BREAKDOWNS = (
     "advertising_revenue",
@@ -38,12 +42,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="stankey")
     subparsers = parser.add_subparsers(dest="command", required=True)
     generate = subparsers.add_parser("generate", help="generate quarterly Sankey assets")
-    generate.add_argument("ticker", help="company ticker (MVP: META)")
+    generate.add_argument("ticker", help="company ticker (META or AMZN)")
     generate.add_argument("--quarter", required=True, help="fiscal quarter, e.g. 2026Q2")
-    generate.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "meta")
+    generate.add_argument("--output-dir", type=Path)
     generate.add_argument("--fetch-sec", action="store_true", help="download and parse the official SEC XBRL instance")
     generate.add_argument("--user-agent", default=os.environ.get("SEC_USER_AGENT"), help="SEC-compliant identity with email")
-    generate.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    generate.add_argument("--config", type=Path)
     generate.add_argument(
         "--png-size",
         type=int,
@@ -54,16 +58,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "generate-series",
         help="generate the latest reported quarter and N-1 preceding quarters",
     )
-    series.add_argument("ticker", help="company ticker (MVP: META)")
+    series.add_argument("ticker", help="company ticker (META or AMZN)")
     series.add_argument("--quarters", type=int, required=True, help="number of quarters to generate")
     series.add_argument(
         "--from-quarter",
         help="newest fiscal quarter, e.g. 2026Q2 (default: latest configured quarter)",
     )
-    series.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "meta")
+    series.add_argument("--output-dir", type=Path)
     series.add_argument("--fetch-sec", action="store_true", help="download and parse each official SEC XBRL instance")
     series.add_argument("--user-agent", default=os.environ.get("SEC_USER_AGENT"), help="SEC-compliant identity with email")
-    series.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    series.add_argument("--config", type=Path)
     series.add_argument(
         "--png-size",
         type=int,
@@ -74,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "discover-filings",
         help="discover configuration-ready quarterly filing metadata from SEC EDGAR",
     )
-    discover.add_argument("ticker", help="company ticker (MVP: META)")
+    discover.add_argument("ticker", help="company ticker (META or AMZN)")
     discover.add_argument("--quarters", type=int, required=True, help="number of quarters to discover")
     discover.add_argument(
         "--from-quarter",
@@ -85,7 +89,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("SEC_USER_AGENT"),
         help="SEC-compliant identity with email",
     )
-    discover.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    discover.add_argument("--config", type=Path)
     discover.add_argument(
         "--output",
         type=Path,
@@ -98,15 +102,28 @@ def _latest_configured_quarter(config: dict) -> str:
     return max(config["quarters"], key=lambda key: (int(key[:4]), int(key[5])))
 
 
+def _config_path(ticker: str, explicit: Optional[Path]) -> Path:
+    if explicit is not None:
+        return explicit
+    try:
+        return COMPANY_CONFIGS[ticker.upper()]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported ticker: {ticker.upper()}") from exc
+
+
+def _output_dir(config: dict, explicit: Optional[Path]) -> Path:
+    return explicit or PROJECT_ROOT / "outputs" / config.get("slug", config["ticker"].lower())
+
+
 def _fetch_quarter_xbrl(config: dict, quarter_key: str, user_agent: str) -> dict:
     if quarter_key not in config["quarters"]:
-        raise ValueError(f"No configured source data for META {quarter_key}")
+        raise ValueError(f"No configured source data for {config['ticker']} {quarter_key}")
     source_config = config["quarters"][quarter_key]["source"]
     raw_path = (
         PROJECT_ROOT
         / "data"
         / "raw"
-        / "meta"
+        / config.get("slug", config["ticker"].lower())
         / source_config["accession"]
         / source_config["document"]
     )
@@ -121,9 +138,14 @@ def _fetch_quarter_xbrl(config: dict, quarter_key: str, user_agent: str) -> dict
 
 
 def generate(args: argparse.Namespace) -> Path:
-    if args.ticker.upper() != "META":
-        raise ValueError("The current generator supports only META")
-    config = getattr(args, "config_data", None) or load_json(args.config)
+    config = getattr(args, "config_data", None) or load_json(
+        _config_path(args.ticker, args.config)
+    )
+    if config["ticker"].upper() != args.ticker.upper():
+        raise ValueError(
+            f"Config ticker {config['ticker']} does not match requested ticker {args.ticker.upper()}"
+        )
+    args.output_dir = _output_dir(config, args.output_dir)
     quarter_key = args.quarter.upper()
     if quarter_key not in config["quarters"]:
         raise ValueError(f"No configured source data for {args.ticker.upper()} {quarter_key}")
@@ -142,7 +164,11 @@ def generate(args: argparse.Namespace) -> Path:
 
     if args.fetch_sec and quarter_key.endswith("Q4"):
         year = quarter_key[:4]
-        nine_current_key = "2022Q3" if quarter_key == "2021Q4" else f"{year}Q3"
+        nine_current_key = (
+            "2022Q3"
+            if config["ticker"].upper() == "META" and quarter_key == "2021Q4"
+            else f"{year}Q3"
+        )
         nine_prior_key = f"{year}Q3"
         nine_current = _fetch_quarter_xbrl(config, nine_current_key, args.user_agent)
         nine_prior = (
@@ -157,11 +183,17 @@ def generate(args: argparse.Namespace) -> Path:
             nine_prior,
             quarter_key,
             allow_missing_prior=(
-                HISTORICAL_REVENUE_BREAKDOWNS if quarter_key == "2021Q4" else ()
+                HISTORICAL_REVENUE_BREAKDOWNS
+                if config["ticker"].upper() == "META" and quarter_key == "2021Q4"
+                else ()
             ),
         )
         input_mode = "derived Q4 from downloaded annual and nine-month SEC XBRL instances"
-    elif args.fetch_sec and quarter_key == "2021Q3":
+    elif (
+        args.fetch_sec
+        and config["ticker"].upper() == "META"
+        and quarter_key == "2021Q3"
+    ):
         recast = _fetch_quarter_xbrl(config, "2022Q3", args.user_agent)
         quarter = normalize_meta(
             config,
@@ -219,7 +251,7 @@ def generate(args: argparse.Namespace) -> Path:
             "Form 10-Q figures are unaudited.",
             "The offline fixture contains selected filed facts, not the complete filing.",
             "Gross profit is derived as revenue minus cost of revenue.",
-            "Segment/product mappings are reviewed Meta-specific XBRL dimension mappings.",
+            f"Segment/product mappings are reviewed {config['ticker']}-specific XBRL dimension mappings.",
             "Displayed billions and year-over-year percentages are rounded; the manifest retains USD millions.",
         ],
     }
@@ -228,9 +260,12 @@ def generate(args: argparse.Namespace) -> Path:
 
 
 def generate_series(args: argparse.Namespace) -> Path:
-    if args.ticker.upper() != "META":
-        raise ValueError("The current generator supports only META")
-    config = load_json(args.config)
+    config = load_json(_config_path(args.ticker, args.config))
+    if config["ticker"].upper() != args.ticker.upper():
+        raise ValueError(
+            f"Config ticker {config['ticker']} does not match requested ticker {args.ticker.upper()}"
+        )
+    args.output_dir = _output_dir(config, args.output_dir)
     start = args.from_quarter.upper() if args.from_quarter else _latest_configured_quarter(config)
     quarters = quarter_sequence(start, args.quarters)
     missing = [quarter for quarter in quarters if quarter not in config["quarters"]]
@@ -294,11 +329,13 @@ def generate_series(args: argparse.Namespace) -> Path:
 
 
 def discover(args: argparse.Namespace) -> Optional[Path]:
-    if args.ticker.upper() != "META":
-        raise ValueError("The current discovery workflow supports only META")
     if not args.user_agent:
         raise ValueError("discover-filings requires --user-agent or SEC_USER_AGENT")
-    config = load_json(args.config)
+    config = load_json(_config_path(args.ticker, args.config))
+    if config["ticker"].upper() != args.ticker.upper():
+        raise ValueError(
+            f"Config ticker {config['ticker']} does not match requested ticker {args.ticker.upper()}"
+        )
     payload = discover_filings(
         config,
         quarters=args.quarters,

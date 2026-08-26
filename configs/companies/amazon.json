@@ -1,0 +1,41 @@
+{
+  "company": "Amazon.com, Inc.",
+  "ticker": "AMZN",
+  "slug": "amazon",
+  "cik": "0001018724",
+  "quarters": {
+    "2026Q2": {
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "prior_start_date": "2025-04-01",
+      "prior_end_date": "2025-06-30",
+      "fixture": "data/fixtures/amazon_2026_q2_sec_xbrl.json",
+      "source": {
+        "form": "10-Q",
+        "accession": "0001018724-26-000026",
+        "document": "amzn-20260630_htm.xml",
+        "filing_date": "2026-07-31",
+        "url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000026/amzn-20260630_htm.xml"
+      }
+    }
+  },
+  "selectors": {
+    "north_america_revenue": {"label": "North America", "concept": "RevenueFromContractWithCustomerExcludingAssessedTax", "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "amzn:NorthAmericaSegmentMember"}, "status": "mapped"},
+    "international_revenue": {"label": "International", "concept": "RevenueFromContractWithCustomerExcludingAssessedTax", "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "amzn:InternationalSegmentMember"}, "status": "mapped"},
+    "aws_revenue": {"label": "AWS", "concept": "RevenueFromContractWithCustomerExcludingAssessedTax", "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "amzn:AmazonWebServicesSegmentMember"}, "status": "mapped"},
+    "revenue": {"label": "Net sales", "concept": "RevenueFromContractWithCustomerExcludingAssessedTax", "dimensions": {}, "status": "reported"},
+    "cost_of_revenue": {"label": "Cost of sales", "concept": "CostOfGoodsAndServicesSold", "dimensions": {}, "status": "reported"},
+    "fulfillment": {"label": "Fulfillment", "concept": "FulfillmentExpense", "dimensions": {}, "status": "reported"},
+    "technology_infrastructure": {"label": "Technology & infrastructure", "concept": "TechnologyAndInfrastructureExpense", "concepts": ["TechnologyAndInfrastructureExpense", "TechnologyAndContentExpense"], "dimensions": {}, "status": "reported"},
+    "marketing": {"label": "Sales & marketing", "concept": "MarketingExpense", "dimensions": {}, "status": "reported"},
+    "general_and_administrative": {"label": "G&A", "concept": "GeneralAndAdministrativeExpense", "dimensions": {}, "status": "reported"},
+    "other_operating_expense": {"label": "Other operating", "concept": "OtherOperatingIncomeExpenseNet", "dimensions": {}, "multiplier": -1, "status": "reported"},
+    "costs_and_expenses": {"label": "Costs & expenses", "concept": "CostsAndExpenses", "dimensions": {}, "status": "reported"},
+    "operating_income": {"label": "Operating income", "concept": "OperatingIncomeLoss", "dimensions": {}, "status": "reported"},
+    "nonoperating_income_expense": {"label": "Net non-operating", "concept": "NonoperatingIncomeExpense", "dimensions": {}, "status": "reported"},
+    "pretax_income": {"label": "Pre-tax income", "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", "dimensions": {}, "status": "reported"},
+    "income_tax": {"label": "Income tax", "concept": "IncomeTaxExpenseBenefit", "dimensions": {}, "status": "reported"},
+    "equity_method_investment": {"label": "Equity-method activity", "concept": "IncomeLossFromEquityMethodInvestments", "dimensions": {}, "status": "reported"},
+    "net_income": {"label": "Net income", "concept": "NetIncomeLoss", "dimensions": {}, "status": "reported"}
+  }
+}

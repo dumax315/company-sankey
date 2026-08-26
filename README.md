@@ -1,6 +1,7 @@
 # Company Stankey
 
-This MVP generates auditable quarterly income-statement Sankeys for Meta. It
+This project generates auditable quarterly income-statement Sankeys for Meta
+and Amazon. It
 emits a canonical SVG with a 1080×1080 viewBox, a matching 3240×3240 PNG master,
 and a JSON manifest containing each value's SEC XBRL provenance and all
 reconciliation results.
@@ -21,10 +22,26 @@ uv run stankey discover-filings META --quarters 20 \
 uv run pytest
 ```
 
-`discover-filings` reads Meta's SEC submissions history, follows historical
+Amazon uses the same workflow and resolves its company config automatically:
+
+```bash
+uv run stankey discover-filings AMZN --quarters 20 --from-quarter 2026Q2 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/amazon/AMZN_discovered_filings.json
+uv run stankey generate-series AMZN --quarters 20 --from-quarter 2026Q2 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+Amazon assets are written under `outputs/amazon/`, including the flat set of
+all masters in `outputs/amazon/png/`. Amazon's adapter reconciles North America,
+International, and AWS sales; its six operating-cost lines; non-operating
+income or expense; income-tax benefits or expense; and equity-method activity.
+Profit and loss quarters are rendered with sign-aware flows.
+
+`discover-filings` reads the company's SEC submissions history, follows historical
 submission pages when the recent feed is not deep enough, resolves each filing's
 extracted XBRL instance, and emits configuration-ready entries under `quarters`.
-It does not modify `configs/companies/meta.json`. Use `--from-quarter 2026Q2` to
+It does not modify the company config. Use `--from-quarter 2026Q2` to
 pin the newest requested quarter, or omit it to start at the latest reported
 filing. Discovered Q4 entries include a warning because 10-K filings generally
 require annual-minus-nine-month derivation; `generate-series` performs that
@@ -80,15 +97,15 @@ are cached under `data/raw/meta/0001628280-26-050705/` and are not committed.
 
 ## MVP limitations
 
-- The checked-in offline fixture covers only `META 2026Q2`; historical series
+- The checked-in offline fixture covers only `META 2026Q2`; Amazon and historical series
   generation requires live SEC access with `--fetch-sec`.
 - Values are GAAP and normalized to USD millions. Form 10-Q figures are
   unaudited, and Q4 values are derived as annual minus nine months.
 - Gross profit is derived because Meta does not report it as a separate fact.
 - Segment/product revenue comes from company-specific XBRL dimensions. Mapping
   it is deterministic but company-specific.
-- The layout uses fixed flow columns with deterministic label lanes. It does not
-  yet generalize automatically across companies or negative operating-profit
-  quarters.
+- The layout uses reviewed company-specific flow columns with deterministic
+  label lanes. Amazon profit/loss and income/expense sign changes are supported;
+  negative consolidated operating-profit quarters are not yet supported.
 - The PNG is derived directly from the SVG; text rasterization can still vary
   by platform font availability.

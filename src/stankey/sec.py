@@ -20,13 +20,21 @@ def _validate_user_agent(user_agent: str) -> None:
 def fetch_sec_json(url: str, user_agent: str) -> dict:
     """Fetch a JSON response from an SEC endpoint under fair-access pacing."""
     _validate_user_agent(user_agent)
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    time.sleep(0.12)
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            return json.load(response)
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Could not fetch SEC JSON {url}: {exc}") from exc
+    retryable_statuses = {429, 500, 502, 503, 504}
+    last_error = None
+    for attempt in range(4):
+        request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+        time.sleep(0.12 if attempt == 0 else 0.5 * (2 ** (attempt - 1)))
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except HTTPError as exc:
+            last_error = exc
+            if exc.code not in retryable_statuses:
+                break
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            last_error = exc
+    raise ValueError(f"Could not fetch SEC JSON {url}: {last_error}") from last_error
 
 
 def download_xbrl(url: str, destination: Path, user_agent: str) -> Path:
@@ -35,10 +43,24 @@ def download_xbrl(url: str, destination: Path, user_agent: str) -> Path:
     if destination.exists():
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    time.sleep(0.12)  # remain comfortably below the SEC's fair-access ceiling
-    with urllib.request.urlopen(request, timeout=30) as response:
-        payload = response.read()
+    retryable_statuses = {429, 500, 502, 503, 504}
+    last_error = None
+    payload = None
+    for attempt in range(4):
+        request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+        time.sleep(0.12 if attempt == 0 else 0.5 * (2 ** (attempt - 1)))
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = response.read()
+            break
+        except HTTPError as exc:
+            last_error = exc
+            if exc.code not in retryable_statuses:
+                break
+        except (URLError, TimeoutError) as exc:
+            last_error = exc
+    if payload is None:
+        raise ValueError(f"Could not download SEC XBRL {url}: {last_error}") from last_error
     temp = destination.with_suffix(destination.suffix + ".tmp")
     temp.write_bytes(payload)
     temp.replace(destination)

@@ -44,7 +44,7 @@ def _quarter_key(report_date: str) -> str:
     quarter = quarter_by_month.get(period_end.month)
     if quarter is None:
         raise ValueError(
-            f"Unsupported fiscal period end {report_date}; META discovery expects calendar quarters"
+            f"Unsupported fiscal period end {report_date}; discovery currently expects calendar quarters"
         )
     return f"{period_end.year}Q{quarter}"
 
@@ -128,8 +128,8 @@ def discover_filings(
     """Return SEC filing metadata shaped for the company's ``quarters`` config."""
     if quarters <= 0:
         raise ValueError("--quarters must be a positive integer")
-    if config.get("ticker", "").upper() != "META":
-        raise ValueError("The current discovery workflow supports only META")
+    if not config.get("ticker") or not config.get("cik"):
+        raise ValueError("Company config must define ticker and cik")
     fetch = fetch_json or fetch_sec_json
     cik = str(config["cik"]).zfill(10)
     submissions_url = f"{SUBMISSIONS_BASE_URL}/CIK{cik}.json"
@@ -168,6 +168,7 @@ def discover_filings(
         raise ValueError("SEC submissions data is missing requested quarter(s): " + ", ".join(missing))
 
     cik_for_archive = str(int(cik))
+    slug = config.get("slug", config["ticker"].lower())
     discovered = {}
     for quarter in requested:
         filing = available[quarter]
@@ -178,7 +179,7 @@ def discover_filings(
         document = _select_xbrl_document(index_payload, filing["primaryDocument"])
         discovered[quarter] = {
             **_period_dates(quarter, filing["reportDate"]),
-            "fixture": f"data/fixtures/meta_{quarter[:4]}_q{quarter[5]}_sec_xbrl.json",
+            "fixture": f"data/fixtures/{slug}_{quarter[:4]}_q{quarter[5]}_sec_xbrl.json",
             "source": {
                 "form": filing["form"],
                 "accession": accession,

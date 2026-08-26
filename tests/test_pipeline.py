@@ -100,7 +100,9 @@ def test_labels_follow_node_positions_and_center_when_vertical(quarter):
         x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons)
         if placement == "above":
             assert x == node.x + 11
-            assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(node.key, -50)
+            assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(
+                node.key, render_module.ABOVE_LABEL_DEFAULT_OFFSET
+            )
             assert anchor == "middle"
         elif placement == "below":
             assert x == node.x + 11

@@ -24,7 +24,14 @@ LABEL_CARD_OPACITY = 0.82
 LABEL_CARD_PADDING_X = 6
 LABEL_CARD_GAP = 8
 LABEL_CARD_VERTICAL_GAP = 1
+LABEL_TITLE_FONT_SIZE = 16
+LABEL_VALUE_FONT_SIZE = 14
+AMAZON_LABEL_TITLE_FONT_SIZE = 18
+AMAZON_LABEL_VALUE_FONT_SIZE = 16
+ABOVE_LABEL_DEFAULT_OFFSET = -56
 GEOMETRY_EPSILON = 0.01
+CANVAS_MARGIN = 16
+SIDE_LABEL_MARGIN = 8
 
 
 @dataclass(frozen=True)
@@ -125,7 +132,7 @@ def _node_rounding(node: Node, ribbons: Sequence[Ribbon]) -> Tuple[bool, bool]:
     return not has_incoming, not has_outgoing
 
 
-def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
+def _layout_meta(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     f = quarter.facts
     scale = 3.3 / 1000.0
     h = lambda key: max(1.2, abs(f[key].value_millions) * scale)
@@ -199,6 +206,193 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     return list(nodes.values()), ribbons
 
 
+def _layout_amazon(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
+    f = quarter.facts
+    scale = 0.8 / 1000.0
+    h = lambda key: max(1.2, abs(f[key].value_millions) * scale)
+    expense_keys = (
+        "fulfillment",
+        "technology_infrastructure",
+        "marketing",
+        "general_and_administrative",
+        "other_operating_expense",
+    )
+    if f["operating_income"].value_millions < 0:
+        raise ValueError("Amazon layout does not yet support operating losses")
+
+    nonoperating_is_income = f["nonoperating_income_expense"].value_millions >= 0
+    pretax_is_income = f["pretax_income"].value_millions >= 0
+    net_is_income = f["net_income"].value_millions >= 0
+    tax_contribution = -f["income_tax"].value_millions
+    equity_contribution = f["equity_method_investment"].value_millions
+    post_tax_contributions = {
+        "pretax_income": f["pretax_income"].value_millions,
+        "income_tax": tax_contribution,
+        "equity_method_investment": equity_contribution,
+    }
+    post_tax_sources = (
+        {key for key, value in post_tax_contributions.items() if value >= 0}
+        if net_is_income
+        else {key for key, value in post_tax_contributions.items() if value < 0}
+    )
+
+    nodes = {
+        "north_america_revenue": Node("north_america_revenue", 210, 340, h("north_america_revenue"), BLUE),
+        "international_revenue": Node("international_revenue", 210, 535, h("international_revenue"), BLUE),
+        "aws_revenue": Node("aws_revenue", 210, 625, h("aws_revenue"), BLUE),
+        "revenue": Node("revenue", 289, 340, h("revenue"), BLUE),
+        "gross_profit": Node("gross_profit", 479, 340, h("gross_profit"), GREEN),
+        "cost_of_revenue": Node("cost_of_revenue", 479, 525, h("cost_of_revenue"), PINK),
+        "operating_income": Node("operating_income", 663, 340, h("operating_income"), GREEN),
+        "fulfillment": Node("fulfillment", 663, 515, h("fulfillment"), PINK),
+        "technology_infrastructure": Node("technology_infrastructure", 663, 590, h("technology_infrastructure"), PINK),
+        "marketing": Node("marketing", 663, 665, h("marketing"), PINK),
+        "general_and_administrative": Node("general_and_administrative", 663, 735, h("general_and_administrative"), PINK),
+        "other_operating_expense": Node(
+            "other_operating_expense",
+            609 if f["other_operating_expense"].value_millions < 0 else 663,
+            800,
+            h("other_operating_expense"),
+            GREEN if f["other_operating_expense"].value_millions < 0 else PINK,
+        ),
+        "pretax_income": Node("pretax_income", 851, 340, h("pretax_income"), GREEN if pretax_is_income else PINK),
+        "nonoperating_income_expense": Node(
+            "nonoperating_income_expense",
+            797 if nonoperating_is_income else 851,
+            430,
+            h("nonoperating_income_expense"),
+            GREEN if nonoperating_is_income else PINK,
+        ),
+        "income_tax": Node(
+            "income_tax",
+            744 if "income_tax" in post_tax_sources else 851,
+            445 if "income_tax" in post_tax_sources else 535,
+            h("income_tax"),
+            GREEN if tax_contribution >= 0 else PINK,
+        ),
+        "equity_method_investment": Node(
+            "equity_method_investment",
+            744 if "equity_method_investment" in post_tax_sources else 806,
+            870,
+            h("equity_method_investment"),
+            GREEN if equity_contribution >= 0 else PINK,
+        ),
+        "net_income": Node("net_income", 873, 340, h("net_income"), GREEN if net_is_income else PINK),
+    }
+
+    def width_value(value: int) -> float:
+        return max(1.2, abs(value) * scale)
+
+    def width(key: str) -> float:
+        return width_value(f[key].value_millions)
+
+    ribbons: List[Ribbon] = []
+    target_y = nodes["revenue"].y
+    for key in ("north_america_revenue", "international_revenue", "aws_revenue"):
+        ribbons.append(Ribbon(key, "revenue", nodes[key].right, nodes[key].y, nodes["revenue"].x, target_y, width(key), BLUE_FLOW))
+        target_y += width(key)
+
+    ribbons.append(Ribbon("revenue", "gross_profit", nodes["revenue"].right, nodes["revenue"].y, nodes["gross_profit"].x, nodes["gross_profit"].y, width("gross_profit"), GREEN_FLOW))
+    ribbons.append(Ribbon("revenue", "cost_of_revenue", nodes["revenue"].right, nodes["revenue"].y + width("gross_profit"), nodes["cost_of_revenue"].x, nodes["cost_of_revenue"].y, width("cost_of_revenue"), PINK_FLOW))
+
+    operating_sources = {"gross_profit": f["gross_profit"].value_millions}
+    operating_targets = {"operating_income": f["operating_income"].value_millions}
+    for key in expense_keys:
+        value = f[key].value_millions
+        if value < 0:
+            operating_sources[key] = -value
+        else:
+            operating_targets[key] = value
+    operating_source_offsets = {key: 0.0 for key in operating_sources}
+    operating_target_offsets = {key: 0.0 for key in operating_targets}
+    operating_remaining = dict(operating_sources)
+    operating_source_keys = list(operating_sources)
+    operating_source_index = 0
+    for target_key, target_value in operating_targets.items():
+        remaining = target_value
+        while remaining > 0:
+            source_key = operating_source_keys[operating_source_index]
+            amount = min(operating_remaining[source_key], remaining)
+            ribbon_width = width_value(amount)
+            ribbons.append(
+                Ribbon(
+                    source_key,
+                    target_key,
+                    nodes[source_key].right,
+                    nodes[source_key].y + operating_source_offsets[source_key],
+                    nodes[target_key].x,
+                    nodes[target_key].y + operating_target_offsets[target_key],
+                    ribbon_width,
+                    GREEN_FLOW if target_key == "operating_income" else PINK_FLOW,
+                )
+            )
+            operating_source_offsets[source_key] += ribbon_width
+            operating_target_offsets[target_key] += ribbon_width
+            operating_remaining[source_key] -= amount
+            remaining -= amount
+            if operating_remaining[source_key] == 0:
+                operating_source_index += 1
+
+    operating = f["operating_income"].value_millions
+    nonoperating = f["nonoperating_income_expense"].value_millions
+    pretax = f["pretax_income"].value_millions
+    if nonoperating >= 0:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(operating), GREEN_FLOW))
+        ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y, nodes["pretax_income"].x, nodes["pretax_income"].y + width_value(operating), width_value(nonoperating), GREEN_FLOW))
+    elif pretax >= 0:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(pretax), GREEN_FLOW))
+        ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y + width_value(pretax), nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width_value(nonoperating), PINK_FLOW))
+    else:
+        ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y, nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width_value(operating), PINK_FLOW))
+        ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y + width_value(operating), nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(pretax), PINK_FLOW))
+
+    # Balance P - tax + equity-method activity = net income. Recasting the
+    # equation by sign keeps loss quarters and tax benefits as honest flows.
+    if net_is_income:
+        source_values = {key: value for key, value in post_tax_contributions.items() if value >= 0}
+        target_values = {key: -value for key, value in post_tax_contributions.items() if value < 0}
+    else:
+        source_values = {key: -value for key, value in post_tax_contributions.items() if value < 0}
+        target_values = {key: value for key, value in post_tax_contributions.items() if value >= 0}
+    target_values["net_income"] = abs(f["net_income"].value_millions)
+    source_offsets = {key: 0.0 for key in source_values}
+    target_offsets = {key: 0.0 for key in target_values}
+    source_remaining = dict(source_values)
+    source_keys = list(source_values)
+    source_index = 0
+    for target_key, target_value in target_values.items():
+        remaining = target_value
+        while remaining > 0:
+            source_key = source_keys[source_index]
+            amount = min(source_remaining[source_key], remaining)
+            ribbon_width = width_value(amount)
+            ribbons.append(
+                Ribbon(
+                    source_key,
+                    target_key,
+                    nodes[source_key].right,
+                    nodes[source_key].y + source_offsets[source_key],
+                    nodes[target_key].x,
+                    nodes[target_key].y + target_offsets[target_key],
+                    ribbon_width,
+                    GREEN_FLOW if target_key == "net_income" and net_is_income else PINK_FLOW,
+                )
+            )
+            source_offsets[source_key] += ribbon_width
+            target_offsets[target_key] += ribbon_width
+            source_remaining[source_key] -= amount
+            remaining -= amount
+            if source_remaining[source_key] == 0:
+                source_index += 1
+    return list(nodes.values()), ribbons
+
+
+def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
+    if quarter.ticker.upper() == "AMZN":
+        return _layout_amazon(quarter)
+    return _layout_meta(quarter)
+
+
 LABEL_KEYS = (
     "advertising_revenue",
     "other_foa_revenue",
@@ -217,6 +411,26 @@ LABEL_KEYS = (
     "income_tax",
 )
 
+AMAZON_LABEL_KEYS = (
+    "north_america_revenue",
+    "international_revenue",
+    "aws_revenue",
+    "revenue",
+    "gross_profit",
+    "cost_of_revenue",
+    "operating_income",
+    "fulfillment",
+    "technology_infrastructure",
+    "marketing",
+    "general_and_administrative",
+    "other_operating_expense",
+    "pretax_income",
+    "nonoperating_income_expense",
+    "income_tax",
+    "equity_method_investment",
+    "net_income",
+)
+
 VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
 }
@@ -226,6 +440,12 @@ ABOVE_LABEL_OFFSETS = {}
 
 def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str, str]:
     round_left, round_right = _node_rounding(node, ribbons)
+    if key == "pretax_income":
+        return node.x + 11, node.y + ABOVE_LABEL_OFFSETS.get(key, ABOVE_LABEL_DEFAULT_OFFSET), "middle", "internal", "above"
+    if key == "nonoperating_income_expense" and not round_left and not round_right:
+        return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
+    if round_left and round_right:
+        return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
     if round_left and not round_right:
         if VERTICAL_TERMINALS.get(key) == "below":
             return node.x + 11, node.y + node.height + 30, "middle", "input", "below"
@@ -236,16 +456,26 @@ def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[fl
         return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
     return (
         node.x + 11,
-        node.y + ABOVE_LABEL_OFFSETS.get(key, -50),
+        node.y + ABOVE_LABEL_OFFSETS.get(key, ABOVE_LABEL_DEFAULT_OFFSET),
         "middle",
         "internal",
         "above",
     )
 
 
-def _label_card_width(fact: FinancialFact) -> float:
-    title_width = len(fact.label) * 8.2
-    value_width = len(_format_fact(fact)) * 7.0
+def _label_font_sizes(quarter: Quarter) -> Tuple[int, int]:
+    if quarter.ticker.upper() == "AMZN":
+        return AMAZON_LABEL_TITLE_FONT_SIZE, AMAZON_LABEL_VALUE_FONT_SIZE
+    return LABEL_TITLE_FONT_SIZE, LABEL_VALUE_FONT_SIZE
+
+
+def _label_card_width(
+    fact: FinancialFact,
+    title_font_size: int = LABEL_TITLE_FONT_SIZE,
+    value_font_size: int = LABEL_VALUE_FONT_SIZE,
+) -> float:
+    title_width = len(fact.label) * 8.75 * title_font_size / LABEL_TITLE_FONT_SIZE
+    value_width = len(_format_fact(fact)) * 7.55 * value_font_size / LABEL_VALUE_FONT_SIZE
     return max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
 
 
@@ -257,25 +487,62 @@ def _label_left(x: float, anchor: str, width: float) -> float:
     return x - LABEL_CARD_PADDING_X
 
 
-def _fit_label_to_canvas(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, str, str, str]:
+def _fit_label_to_canvas(
+    fact: FinancialFact,
+    position: Tuple[float, float, str, str, str],
+    title_font_size: int = LABEL_TITLE_FONT_SIZE,
+    value_font_size: int = LABEL_VALUE_FONT_SIZE,
+    node: "Node | None" = None,
+) -> Tuple[float, float, str, str, str]:
     x, y, anchor, _, _ = position
-    width = _label_card_width(fact)
+    width = _label_card_width(fact, title_font_size, value_font_size)
     desired_left = _label_left(x, anchor, width)
-    fitted_left = max(16, min(desired_left, WIDTH - width - 16))
+    fitted_left = max(CANVAS_MARGIN, min(desired_left, WIDTH - width - CANVAS_MARGIN))
+    # Keep a side-placed card beside its node rather than covering it. A
+    # right-anchored (start) card must start at or after the node's right edge;
+    # a left-anchored (end) card must end at or before the node's left edge.
+    # When honouring that would push the card past the wider canvas margin, we
+    # fall back to a tighter side margin so the card can sit fully beside the
+    # rightmost/leftmost terminal instead of covering it, while staying
+    # on-canvas.
+    if node is not None:
+        if anchor == "start":
+            floor_left = node.right + LABEL_CARD_GAP - LABEL_CARD_PADDING_X
+            candidate = max(fitted_left, floor_left)
+            fitted_left = min(candidate, WIDTH - width - SIDE_LABEL_MARGIN)
+            fitted_left = max(fitted_left, CANVAS_MARGIN)
+        elif anchor == "end":
+            ceil_left = node.x - LABEL_CARD_GAP - width + LABEL_CARD_PADDING_X
+            candidate = min(fitted_left, ceil_left)
+            fitted_left = max(candidate, SIDE_LABEL_MARGIN)
     return x + fitted_left - desired_left, y, anchor, position[3], position[4]
 
 
-def _label_card_bounds(fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> Tuple[float, float, float, float]:
+def _label_card_bounds(
+    fact: FinancialFact,
+    position: Tuple[float, float, str, str, str],
+    title_font_size: int = LABEL_TITLE_FONT_SIZE,
+    value_font_size: int = LABEL_VALUE_FONT_SIZE,
+) -> Tuple[float, float, float, float]:
     x, y, anchor, _, _ = position
-    width = _label_card_width(fact)
+    width = _label_card_width(fact, title_font_size, value_font_size)
     left = _label_left(x, anchor, width)
-    return left, y - 20, width, 45
+    size_delta = max(0, title_font_size - LABEL_TITLE_FONT_SIZE)
+    return left, y - 22 - size_delta, width, 49 + size_delta * 2
 
 
-def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str, str, str]) -> str:
+def _label_card(
+    key: str,
+    fact: FinancialFact,
+    position: Tuple[float, float, str, str, str],
+    title_font_size: int,
+    value_font_size: int,
+) -> str:
     """Return a translucent backing card sized for a two-line fact label."""
     _, _, _, role, placement = position
-    left, top, width, height = _label_card_bounds(fact, position)
+    left, top, width, height = _label_card_bounds(
+        fact, position, title_font_size, value_font_size
+    )
     return (
         f'<rect class="label-card" data-key="{key}" data-role="{role}" data-placement="{placement}" '
         f'x="{left:.1f}" y="{top:.1f}" '
@@ -304,7 +571,13 @@ def _pack_above_labels(quarter: Quarter, positions: dict) -> dict:
     )
     if not keys:
         return packed
-    widths = {key: _label_card_width(quarter.facts[key]) for key in keys}
+    title_font_size, value_font_size = _label_font_sizes(quarter)
+    widths = {
+        key: _label_card_width(
+            quarter.facts[key], title_font_size, value_font_size
+        )
+        for key in keys
+    }
     available_width = WIDTH - 32
     required_width = sum(widths.values()) + LABEL_CARD_GAP * (len(keys) - 1)
     if required_width > available_width + GEOMETRY_EPSILON:
@@ -327,11 +600,12 @@ def _pack_above_labels(quarter: Quarter, positions: dict) -> dict:
         _, _, anchor, role, placement = positions[key]
         if anchor != "middle":
             raise ValueError(f"Top label must use a centered anchor: {key}")
+        # Prefer perfect centering over the node, but when the row is too tight
+        # (e.g. derived Q4 quarters with wide YoY strings) allow the card and its
+        # text to shift together by a small amount so they stay on one row and
+        # never overlap. The text is anchored to the card centre, so it remains
+        # inside the card and visually attached to the node.
         packed_x = lefts[key] + widths[key] / 2
-        if abs(packed_x - positions[key][0]) > GEOMETRY_EPSILON:
-            raise ValueError(
-                f"Top label cannot remain centered without overlap: {key}"
-            )
         packed[key] = (
             packed_x,
             row_y,
@@ -349,8 +623,11 @@ def _resolve_label_spacing(quarter: Quarter, positions: dict) -> dict:
 
 
 def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
+    title_font_size, value_font_size = _label_font_sizes(quarter)
     bounds = {
-        key: _label_card_bounds(quarter.facts[key], position)
+        key: _label_card_bounds(
+            quarter.facts[key], position, title_font_size, value_font_size
+        )
         for key, position in positions.items()
     }
     keys = list(bounds)
@@ -396,28 +673,37 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
             f'fill="{node.color}"/>'
         )
     nodes_by_key = {node.key: node for node in nodes}
+    label_keys = AMAZON_LABEL_KEYS if quarter.ticker.upper() == "AMZN" else LABEL_KEYS
+    title_font_size, value_font_size = _label_font_sizes(quarter)
     positions = {
         key: _fit_label_to_canvas(
             quarter.facts[key],
             _label_position(key, nodes_by_key[key], ribbons),
+            title_font_size,
+            value_font_size,
+            nodes_by_key[key],
         )
-        for key in LABEL_KEYS
+        for key in label_keys
     }
     positions = _pack_above_labels(quarter, positions)
     positions = _resolve_label_spacing(quarter, positions)
     _validate_label_spacing(quarter, positions)
-    for key in LABEL_KEYS:
+    for key in label_keys:
         fact = quarter.facts[key]
         position = positions[key]
         x, y, anchor, _, _ = position
-        lines.append(_label_card(key, fact, position))
-        lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
-        lines.append(f'<text x="{x}" y="{y + 19}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
+        lines.append(
+            _label_card(
+                key, fact, position, title_font_size, value_font_size
+            )
+        )
+        lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="{title_font_size}" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
+        lines.append(f'<text x="{x}" y="{y + 21}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="{value_font_size}" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',
             f'<text x="42" y="980" font-family="Arial,sans-serif" font-size="14" fill="{INK}">Source: {escape(quarter.company)} SEC filing dated {_display_date(source.filing_date)} • accession {escape(source.accession)}</text>',
-            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. * values are derived. Segment labels use Meta-specific XBRL dimensions.</text>',
+            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. * values are derived. Segment labels use {escape(quarter.ticker)}-specific XBRL dimensions.</text>',
             f'<text x="42" y="1028" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Values mapped from filing XBRL; flows may omit disclosures outside this income-statement bridge.</text>',
             "</svg>",
         ]

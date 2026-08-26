@@ -26,27 +26,46 @@ def _matches(raw: dict, concept: str, start: str, end: str, dimensions: dict) ->
     )
 
 def _select(facts: Iterable[dict], selector: dict, start: str, end: str) -> dict:
+    concepts = selector.get("concepts", [selector["concept"]])
+    dimension_options = selector.get("dimension_options", [selector["dimensions"]])
     matches = [
         fact
         for fact in facts
-        if _matches(fact, selector["concept"], start, end, selector["dimensions"])
+        if any(
+            _matches(fact, concept, start, end, dimensions)
+            for concept in concepts
+            for dimensions in dimension_options
+        )
     ]
-    values = {match["value"] for match in matches}
     if not matches:
         raise FactSelectionError(
-            f"No fact for {selector['concept']} in {start}..{end} with dimensions "
-            f"{selector['dimensions']}"
+            f"No fact for {concepts} in {start}..{end} with dimensions "
+            f"{dimension_options}"
         )
+    numeric_decimals = [
+        int(match["decimals"])
+        for match in matches
+        if str(match.get("decimals", "")).lstrip("-").isdigit()
+    ]
+    if numeric_decimals:
+        most_precise = max(numeric_decimals)
+        matches = [
+            match
+            for match in matches
+            if str(match.get("decimals", "")).lstrip("-").isdigit()
+            and int(match["decimals"]) == most_precise
+        ]
+    values = {match["value"] for match in matches}
     if len(values) != 1:
         raise FactSelectionError(f"Conflicting values for {selector['concept']}: {values}")
     return matches[0]
 
 
-def _millions(raw_value: str) -> int:
+def _millions(raw_value: str, multiplier: int = 1) -> int:
     value = int(raw_value)
     if value % 1_000_000:
         raise FactSelectionError(f"Expected whole USD millions, received {value}")
-    return value // 1_000_000
+    return value // 1_000_000 * multiplier
 
 
 def _provenance(raw: dict, source: dict) -> Provenance:
@@ -99,8 +118,12 @@ def normalize_meta(
         facts[key] = FinancialFact(
             key=key,
             label=selector["label"],
-            value_millions=_millions(current["value"]),
-            prior_value_millions=_millions(prior["value"]) if prior else None,
+            value_millions=_millions(current["value"], selector.get("multiplier", 1)),
+            prior_value_millions=(
+                _millions(prior["value"], selector.get("multiplier", 1))
+                if prior
+                else None
+            ),
             status=selector["status"],
             provenance=[_provenance(current, current_input["source"])],
         )
@@ -169,12 +192,16 @@ def normalize_meta_q4(
             nine_prior = None
         prior_value = None
         if annual_prior is not None and nine_prior is not None:
-            prior_value = _millions(annual_prior["value"]) - _millions(nine_prior["value"])
+            prior_value = (
+                _millions(annual_prior["value"], selector.get("multiplier", 1))
+                - _millions(nine_prior["value"], selector.get("multiplier", 1))
+            )
         facts[key] = FinancialFact(
             key=key,
             label=selector["label"],
             value_millions=(
-                _millions(annual_current["value"]) - _millions(nine_current["value"])
+                _millions(annual_current["value"], selector.get("multiplier", 1))
+                - _millions(nine_current["value"], selector.get("multiplier", 1))
             ),
             prior_value_millions=prior_value,
             status="derived",
