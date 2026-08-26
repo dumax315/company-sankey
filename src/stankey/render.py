@@ -1,7 +1,8 @@
+import math
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Sequence, Tuple
 
 import resvg_py
 
@@ -73,6 +74,45 @@ def _ribbon_path(ribbon: Ribbon) -> str:
         f"L {tx:.2f},{ty + width:.2f} "
         f"C {tx - bend:.2f},{ty + width:.2f} {sx + bend:.2f},{sy + width:.2f} {sx:.2f},{sy + width:.2f} Z"
     )
+
+
+def _node_path(node: Node, round_left: bool, round_right: bool) -> str:
+    """Draw a node with rounding only on sides that have no attached flow."""
+    bottom = node.y + node.height
+    radius = min(6.0, node.height / 2, (node.right - node.x) / 2)
+    left_radius = radius if round_left else 0.0
+    right_radius = radius if round_right else 0.0
+    parts = [
+        f"M {node.x + left_radius:.2f},{node.y:.2f}",
+        f"H {node.right - right_radius:.2f}",
+    ]
+    if round_right:
+        parts.append(f"Q {node.right:.2f},{node.y:.2f} {node.right:.2f},{node.y + right_radius:.2f}")
+    else:
+        parts.append(f"H {node.right:.2f}")
+    parts.append(f"V {bottom - right_radius:.2f}")
+    if round_right:
+        parts.append(f"Q {node.right:.2f},{bottom:.2f} {node.right - right_radius:.2f},{bottom:.2f}")
+    else:
+        parts.append(f"V {bottom:.2f}")
+    parts.append(f"H {node.x + left_radius:.2f}")
+    if round_left:
+        parts.append(f"Q {node.x:.2f},{bottom:.2f} {node.x:.2f},{bottom - left_radius:.2f}")
+    else:
+        parts.append(f"H {node.x:.2f}")
+    parts.append(f"V {node.y + left_radius:.2f}")
+    if round_left:
+        parts.append(f"Q {node.x:.2f},{node.y:.2f} {node.x + left_radius:.2f},{node.y:.2f}")
+    else:
+        parts.append(f"V {node.y:.2f}")
+    parts.append("Z")
+    return " ".join(parts)
+
+
+def _node_rounding(node: Node, ribbons: Sequence[Ribbon]) -> Tuple[bool, bool]:
+    has_incoming = any(math.isclose(ribbon.target_x, node.x, abs_tol=0.01) for ribbon in ribbons)
+    has_outgoing = any(math.isclose(ribbon.source_x, node.right, abs_tol=0.01) for ribbon in ribbons)
+    return not has_incoming, not has_outgoing
 
 
 def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
@@ -179,11 +219,16 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended Jun 30, 2026 • USD billions • GAAP • unaudited</text>',
     ]
     for ribbon in ribbons:
-        lines.append(f'<path d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
+        lines.append(f'<path class="ribbon" d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
     for node in nodes:
         fact = quarter.facts[node.key]
         dash = ' stroke-dasharray="5 3" stroke-width="3" stroke="#12683d"' if fact.status == "derived" else ""
-        lines.append(f'<rect x="{node.x}" y="{node.y}" width="22" height="{node.height:.2f}" rx="2" fill="{node.color}"{dash}/>')
+        round_left, round_right = _node_rounding(node, ribbons)
+        lines.append(
+            f'<path class="node" data-key="{node.key}" data-round-left="{str(round_left).lower()}" '
+            f'data-round-right="{str(round_right).lower()}" d="{_node_path(node, round_left, round_right)}" '
+            f'fill="{node.color}"{dash}/>'
+        )
     for key, (x, y, anchor) in LABELS.items():
         fact = quarter.facts[key]
         lines.append(_label_card(key, fact))

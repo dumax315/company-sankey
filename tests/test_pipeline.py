@@ -59,7 +59,11 @@ def test_generate_writes_square_assets_and_auditable_manifest(tmp_path: Path):
     svg_path = tmp_path / "01_META_2026_Q2.svg"
     png_path = tmp_path / "01_META_2026_Q2.png"
     svg = svg_path.read_text(encoding="utf-8")
-    assert svg.count("<path") == 14
+    assert svg.count('class="ribbon"') == 14
+    assert svg.count('class="node"') == 15
+    assert 'data-key="advertising_revenue" data-round-left="true" data-round-right="false"' in svg
+    assert 'data-key="revenue" data-round-left="false" data-round-right="false"' in svg
+    assert 'data-key="net_income" data-round-left="false" data-round-right="true"' in svg
     assert svg.count('class="label-card"') == 15
     assert 'fill-opacity="0.82"' in svg
     assert 'viewBox="0 0 1080 1080"' in svg
