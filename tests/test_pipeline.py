@@ -67,7 +67,7 @@ def test_generate_writes_square_assets_and_auditable_manifest(tmp_path: Path):
     assert svg.count('class="label-card"') == 15
     assert 'fill-opacity="0.82"' in svg
     assert 'x="16.0"' not in svg
-    assert 'x="910.0" y="450.0" width="128.0" height="45"' in svg
+    assert 'x="908.0" y="450.0" width="132.0" height="45"' in svg
     assert 'viewBox="0 0 1080 1080"' in svg
     assert "See adjacent JSON manifest" not in svg
     png_header = png_path.read_bytes()[:24]

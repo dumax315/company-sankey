@@ -21,6 +21,7 @@ PINK_FLOW = "#dc6792"
 MUTED = "#5c6872"
 LABEL_CARD = "#ffffff"
 LABEL_CARD_OPACITY = 0.82
+LABEL_CARD_PADDING_X = 10
 
 
 @dataclass(frozen=True)
@@ -191,13 +192,13 @@ def _label_card(key: str, fact: FinancialFact) -> str:
     x, y, anchor = LABELS[key]
     title_width = len(fact.label) * 8.2
     value_width = len(_format_fact(fact)) * 7.0
-    width = max(title_width, value_width) + 16
+    width = max(title_width, value_width) + LABEL_CARD_PADDING_X * 2
     if anchor == "middle":
         left = x - width / 2
     elif anchor == "end":
-        left = x - width + 8
+        left = x - width + LABEL_CARD_PADDING_X
     else:
-        left = x - 8
+        left = x - LABEL_CARD_PADDING_X
     left = max(16, min(left, WIDTH - width - 16))
     return (
         f'<rect class="label-card" x="{left:.1f}" y="{y - 20:.1f}" '
@@ -233,8 +234,8 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
     for key, (x, y, anchor) in LABELS.items():
         fact = quarter.facts[key]
         lines.append(_label_card(key, fact))
-        lines.append(f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
-        lines.append(f'<text x="{x}" y="{y + 20}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
+        lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
+        lines.append(f'<text x="{x}" y="{y + 19}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',
