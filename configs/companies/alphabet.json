@@ -1,0 +1,68 @@
+{
+  "company": "Alphabet Inc.",
+  "ticker": "GOOGL",
+  "slug": "alphabet",
+  "cik": "0001652044",
+  "quarters": {},
+  "optional_selectors": [
+    "google_services_revenue",
+    "google_cloud_revenue",
+    "other_bets_revenue",
+    "hedging_revenue"
+  ],
+  "selectors": {
+    "google_services_revenue": {
+      "label": "Google Services",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+      "dimension_options": [
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"}
+      ],
+      "status": "mapped"
+    },
+    "google_cloud_revenue": {
+      "label": "Google Cloud",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudMember"},
+      "dimension_options": [
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudMember"},
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudSegmentMember"}
+      ],
+      "status": "mapped"
+    },
+    "other_bets_revenue": {
+      "label": "Other Bets",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "us-gaap:AllOtherSegmentsMember"},
+      "dimension_options": [
+        {"us-gaap:StatementBusinessSegmentsAxis": "us-gaap:AllOtherSegmentsMember"},
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:OtherBetsMember"}
+      ],
+      "status": "mapped"
+    },
+    "hedging_revenue": {
+      "label": "Hedging gains (losses)",
+      "concept": "RevenueNotFromContractWithCustomer",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "revenue": {
+      "label": "Revenues",
+      "concept": "Revenues",
+      "concepts": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+      "dimensions": {},
+      "status": "reported"
+    },
+    "cost_of_revenue": {"label": "Cost of revenues", "concept": "CostOfRevenue", "dimensions": {}, "status": "reported"},
+    "research_and_development": {"label": "R&D", "concept": "ResearchAndDevelopmentExpense", "dimensions": {}, "status": "reported"},
+    "sales_and_marketing": {"label": "Sales & marketing", "concept": "SellingAndMarketingExpense", "dimensions": {}, "status": "reported"},
+    "general_and_administrative": {"label": "G&A", "concept": "GeneralAndAdministrativeExpense", "dimensions": {}, "status": "reported"},
+    "costs_and_expenses": {"label": "Costs & expenses", "concept": "CostsAndExpenses", "dimensions": {}, "status": "reported"},
+    "operating_income": {"label": "Operating income", "concept": "OperatingIncomeLoss", "dimensions": {}, "status": "reported"},
+    "nonoperating_income_expense": {"label": "Net other income", "concept": "NonoperatingIncomeExpense", "dimensions": {}, "status": "reported"},
+    "pretax_income": {"label": "Pre-tax income", "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest", "concepts": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest", "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"], "dimensions": {}, "status": "reported"},
+    "income_tax": {"label": "Income tax", "concept": "IncomeTaxExpenseBenefit", "dimensions": {}, "status": "reported"},
+    "net_income": {"label": "Net income", "concept": "NetIncomeLoss", "dimensions": {}, "status": "reported"}
+  }
+}

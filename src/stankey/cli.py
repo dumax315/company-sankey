@@ -20,6 +20,7 @@ DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "companies" / "meta.json"
 COMPANY_CONFIGS = {
     "META": DEFAULT_CONFIG,
     "AMZN": PROJECT_ROOT / "configs" / "companies" / "amazon.json",
+    "GOOGL": PROJECT_ROOT / "configs" / "companies" / "alphabet.json",
 }
 DEFAULT_FIXTURE = PROJECT_ROOT / "data" / "fixtures" / "meta_2026_q2_sec_xbrl.json"
 HISTORICAL_REVENUE_BREAKDOWNS = (

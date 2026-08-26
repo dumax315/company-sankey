@@ -96,14 +96,24 @@ def normalize_meta(
     quarter_config = config["quarters"][quarter_key]
     current_input = current_extracted or extracted
     prior_input = prior_extracted or extracted
+    optional_selectors = set(config.get("optional_selectors", ()))
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
-        current = _select(
-            current_input["facts"],
-            selector,
-            quarter_config["start_date"],
-            quarter_config["end_date"],
-        )
+        try:
+            current = _select(
+                current_input["facts"],
+                selector,
+                quarter_config["start_date"],
+                quarter_config["end_date"],
+            )
+        except FactSelectionError:
+            # Some disclosures (e.g. Alphabet's segment revenue and hedging
+            # adjustment) are not tagged in every extracted instance. Skip an
+            # optional selector when the current period is unavailable rather
+            # than failing the whole quarter.
+            if key in optional_selectors:
+                continue
+            raise
         try:
             prior = _select(
                 prior_input["facts"],
@@ -170,14 +180,23 @@ def normalize_meta_q4(
     prior_annual_period = (f"{year - 1}-01-01", f"{year - 1}-12-31")
     current_nine_period = (f"{year}-01-01", f"{year}-09-30")
     prior_nine_period = (f"{year - 1}-01-01", f"{year - 1}-09-30")
+    optional_selectors = set(config.get("optional_selectors", ()))
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
-        annual_current = _select(
-            annual_extracted["facts"], selector, *current_annual_period
-        )
-        nine_current = _select(
-            nine_month_current_extracted["facts"], selector, *current_nine_period
-        )
+        try:
+            annual_current = _select(
+                annual_extracted["facts"], selector, *current_annual_period
+            )
+            nine_current = _select(
+                nine_month_current_extracted["facts"], selector, *current_nine_period
+            )
+        except FactSelectionError:
+            # Optional disclosures may be absent from the annual or nine-month
+            # instance (Alphabet does not tag segment revenue cumulatively);
+            # skip deriving a standalone Q4 value for them.
+            if key in optional_selectors:
+                continue
+            raise
         try:
             annual_prior = _select(
                 annual_extracted["facts"], selector, *prior_annual_period

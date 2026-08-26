@@ -1,7 +1,7 @@
 # Company Stankey
 
-This project generates auditable quarterly income-statement Sankeys for Meta
-and Amazon. It
+This project generates auditable quarterly income-statement Sankeys for Meta,
+Amazon, and Alphabet. It
 emits a canonical SVG with a 1080×1080 viewBox, a matching 3240×3240 PNG master,
 and a JSON manifest containing each value's SEC XBRL provenance and all
 reconciliation results.
@@ -37,6 +37,35 @@ all masters in `outputs/amazon/png/`. Amazon's adapter reconciles North America,
 International, and AWS sales; its six operating-cost lines; non-operating
 income or expense; income-tax benefits or expense; and equity-method activity.
 Profit and loss quarters are rendered with sign-aware flows.
+
+Alphabet uses the same workflow and resolves its company config automatically:
+
+```bash
+uv run stankey discover-filings GOOGL --quarters 20 --from-quarter 2025Q4 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/alphabet/GOOGL_discovered_filings.json
+uv run stankey generate-series GOOGL --quarters 4 --from-quarter 2025Q4 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+Alphabet assets are written under `outputs/alphabet/`, including the flat set of
+all masters in `outputs/alphabet/png/`. Alphabet's adapter reconciles Google
+Services, Google Cloud, and Other Bets revenue against consolidated revenues
+(including the intercompany hedging adjustment when Alphabet tags it as a
+separate line); its cost of revenues and R&D, sales & marketing, and G&A
+operating expenses against total costs and expenses; operating income;
+non-operating income or expense; income-tax benefits or expense; and net income.
+Gross profit is derived. Profit, loss, and tax-benefit quarters render with
+sign-aware flows.
+
+Alphabet tags segment revenue only in some extracted instances, and older
+filings tag only a subset. The Google Services, Google Cloud, and Other Bets
+cards are drawn only when all three are present; otherwise they are skipped and
+the remaining income-statement identities still reconcile. The consolidated
+revenue concept also varies by period (older filings use
+`RevenueFromContractWithCustomerExcludingAssessedTax`, newer ones use
+`Revenues`), as does the pre-tax income concept, and each variant is matched
+automatically.
 
 `discover-filings` reads the company's SEC submissions history, follows historical
 submission pages when the recent feed is not deep enough, resolves each filing's
@@ -97,8 +126,8 @@ are cached under `data/raw/meta/0001628280-26-050705/` and are not committed.
 
 ## MVP limitations
 
-- The checked-in offline fixture covers only `META 2026Q2`; Amazon and historical series
-  generation requires live SEC access with `--fetch-sec`.
+- The checked-in offline fixture covers only `META 2026Q2`; Amazon, Alphabet, and historical
+  series generation requires live SEC access with `--fetch-sec`.
 - Values are GAAP and normalized to USD millions. Form 10-Q figures are
   unaudited, and Q4 values are derived as annual minus nine months.
 - Gross profit is derived because Meta does not report it as a separate fact.

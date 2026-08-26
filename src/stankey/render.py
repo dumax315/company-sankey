@@ -59,6 +59,58 @@ class Ribbon:
     color: str
 
 
+def h_of(facts, key: str, scale: float = 0.8 / 1000.0) -> float:
+    return max(1.2, abs(facts[key].value_millions) * scale)
+
+
+def _packed_flows(
+    nodes: dict,
+    source_values: dict,
+    target_values: dict,
+    income_key: str,
+    width_value,
+    income_target: bool = True,
+) -> List["Ribbon"]:
+    """Greedily route balanced source amounts into ordered targets.
+
+    Sources and targets are positive magnitudes that sum to the same total.
+    Each target is filled from the running source list, splitting a source
+    across targets when needed. Flows into ``income_key`` are green when
+    ``income_target`` is set; everything else is pink.
+    """
+    source_offsets = {key: 0.0 for key in source_values}
+    target_offsets = {key: 0.0 for key in target_values}
+    source_remaining = dict(source_values)
+    source_keys = list(source_values)
+    source_index = 0
+    ribbons: List[Ribbon] = []
+    for target_key, target_value in target_values.items():
+        remaining = target_value
+        while remaining > 0 and source_index < len(source_keys):
+            source_key = source_keys[source_index]
+            amount = min(source_remaining[source_key], remaining)
+            ribbon_width = width_value(amount)
+            ribbons.append(
+                Ribbon(
+                    source_key,
+                    target_key,
+                    nodes[source_key].right,
+                    nodes[source_key].y + source_offsets[source_key],
+                    nodes[target_key].x,
+                    nodes[target_key].y + target_offsets[target_key],
+                    ribbon_width,
+                    GREEN_FLOW if target_key == income_key and income_target else PINK_FLOW,
+                )
+            )
+            source_offsets[source_key] += ribbon_width
+            target_offsets[target_key] += ribbon_width
+            source_remaining[source_key] -= amount
+            remaining -= amount
+            if source_remaining[source_key] <= 0:
+                source_index += 1
+    return ribbons
+
+
 def _format_fact(fact: FinancialFact) -> str:
     if abs(fact.value_millions) < 1000:
         value = f"${abs(fact.value_millions):,}M"
@@ -387,9 +439,175 @@ def _layout_amazon(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     return list(nodes.values()), ribbons
 
 
+def _layout_alphabet(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
+    f = quarter.facts
+    scale = 0.8 / 1000.0
+
+    def width_value(value: float) -> float:
+        return max(1.2, abs(value) * scale)
+
+    def width(key: str) -> float:
+        return width_value(f[key].value_millions)
+
+    # Alphabet tags segment revenue only in some extracted instances (Q1/Q2);
+    # nine-month and annual filings omit it, and a few filings tag only a subset.
+    # Draw the segment column only when all three segments are present so a lone
+    # segment never appears to feed the whole revenue node.
+    all_segment_keys = ("google_services_revenue", "google_cloud_revenue", "other_bets_revenue")
+    segment_keys = (
+        list(all_segment_keys) if all(key in f for key in all_segment_keys) else []
+    )
+    expense_keys = (
+        "research_and_development",
+        "sales_and_marketing",
+        "general_and_administrative",
+    )
+
+    operating = f["operating_income"].value_millions
+    nonoperating = f["nonoperating_income_expense"].value_millions
+    pretax = f["pretax_income"].value_millions
+    operating_is_income = operating >= 0
+    nonoperating_is_income = nonoperating >= 0
+    pretax_is_income = pretax >= 0
+    net_is_income = f["net_income"].value_millions >= 0
+    tax_contribution = -f["income_tax"].value_millions
+    post_tax_contributions = {
+        "pretax_income": pretax,
+        "income_tax": tax_contribution,
+    }
+    post_tax_sources = (
+        {key for key, value in post_tax_contributions.items() if value >= 0}
+        if net_is_income
+        else {key for key, value in post_tax_contributions.items() if value < 0}
+    )
+
+    nodes = {
+        "revenue": Node("revenue", 300, 340, h_of(f, "revenue"), BLUE),
+        "gross_profit": Node("gross_profit", 486, 340, h_of(f, "gross_profit"), GREEN),
+        "cost_of_revenue": Node("cost_of_revenue", 486, 505, h_of(f, "cost_of_revenue"), PINK),
+        "operating_income": Node(
+            "operating_income",
+            663,
+            340,
+            h_of(f, "operating_income"),
+            GREEN if operating_is_income else PINK,
+        ),
+        "research_and_development": Node("research_and_development", 663, 600, h_of(f, "research_and_development"), PINK),
+        "sales_and_marketing": Node("sales_and_marketing", 663, 695, h_of(f, "sales_and_marketing"), PINK),
+        "general_and_administrative": Node("general_and_administrative", 663, 785, h_of(f, "general_and_administrative"), PINK),
+        "pretax_income": Node("pretax_income", 851, 340, h_of(f, "pretax_income"), GREEN if pretax_is_income else PINK),
+        "nonoperating_income_expense": Node(
+            "nonoperating_income_expense",
+            797 if nonoperating_is_income else 851,
+            455,
+            h_of(f, "nonoperating_income_expense"),
+            GREEN if nonoperating_is_income else PINK,
+        ),
+        "income_tax": Node(
+            "income_tax",
+            744 if "income_tax" in post_tax_sources else 851,
+            455 if "income_tax" in post_tax_sources else 545,
+            h_of(f, "income_tax"),
+            GREEN if tax_contribution >= 0 else PINK,
+        ),
+        "net_income": Node("net_income", 873, 340, h_of(f, "net_income"), GREEN if net_is_income else PINK),
+    }
+    # Segment revenue nodes stack to the left of consolidated revenue. Left-side
+    # label cards are anchored to each node's vertical centre, so we space the
+    # centres by a fixed stride (larger than a label card's height) and derive
+    # each node's top from its own height. This keeps cards from colliding even
+    # when a segment (Other Bets) is only a few pixels tall.
+    segment_stride = 72.0
+    segment_block_height = segment_stride * (len(segment_keys) - 1) if segment_keys else 0.0
+    revenue_center = nodes["revenue"].y + h_of(f, "revenue") / 2
+    center_y = revenue_center - segment_block_height / 2
+    for key in segment_keys:
+        node_height = width(key)
+        nodes[key] = Node(key, 190, center_y - node_height / 2, node_height, BLUE)
+        center_y += segment_stride
+
+    ribbons: List[Ribbon] = []
+    # Segment revenue -> consolidated revenue (when segment facts are present).
+    target_y = nodes["revenue"].y
+    for key in segment_keys:
+        ribbons.append(
+            Ribbon(
+                key,
+                "revenue",
+                nodes[key].right,
+                nodes[key].y,
+                nodes["revenue"].x,
+                target_y,
+                width(key),
+                BLUE_FLOW,
+            )
+        )
+        target_y += width(key)
+
+    # Consolidated revenue -> gross profit and cost of revenue.
+    ribbons.append(Ribbon("revenue", "gross_profit", nodes["revenue"].right, nodes["revenue"].y, nodes["gross_profit"].x, nodes["gross_profit"].y, width("gross_profit"), GREEN_FLOW))
+    ribbons.append(Ribbon("revenue", "cost_of_revenue", nodes["revenue"].right, nodes["revenue"].y + width("gross_profit"), nodes["cost_of_revenue"].x, nodes["cost_of_revenue"].y, width("cost_of_revenue"), PINK_FLOW))
+
+    # Gross profit (and any expense credits) fund operating income and operating
+    # expenses. Splitting by sign keeps expense reversals honest.
+    operating_sources = {"gross_profit": f["gross_profit"].value_millions}
+    operating_targets = {}
+    if operating_is_income:
+        operating_targets["operating_income"] = operating
+    else:
+        operating_sources["operating_income"] = -operating
+    for key in expense_keys:
+        value = f[key].value_millions
+        if value < 0:
+            operating_sources[key] = -value
+        else:
+            operating_targets[key] = value
+    ribbons.extend(
+        _packed_flows(nodes, operating_sources, operating_targets, "operating_income", width_value)
+    )
+
+    # Operating income + non-operating income = pre-tax income (sign-aware).
+    if nonoperating_is_income and operating_is_income:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(operating), GREEN_FLOW))
+        ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y, nodes["pretax_income"].x, nodes["pretax_income"].y + width_value(operating), width_value(nonoperating), GREEN_FLOW))
+    elif operating_is_income and pretax_is_income:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(pretax), GREEN_FLOW))
+        ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y + width_value(pretax), nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width_value(nonoperating), PINK_FLOW))
+    elif operating_is_income and not pretax_is_income:
+        ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y, nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width_value(operating), PINK_FLOW))
+        ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y + width_value(operating), nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(pretax), PINK_FLOW))
+    else:
+        # Operating loss: non-operating income offsets it toward pre-tax.
+        ribbons.append(Ribbon("nonoperating_income_expense", "operating_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y, nodes["operating_income"].x, nodes["operating_income"].y, width_value(operating), PINK_FLOW))
+        if pretax_is_income:
+            ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y + width_value(operating), nodes["pretax_income"].x, nodes["pretax_income"].y, width_value(pretax), GREEN_FLOW))
+
+    # Pre-tax income - income tax = net income (sign-aware, no equity-method line).
+    if net_is_income:
+        source_values = {key: value for key, value in post_tax_contributions.items() if value >= 0}
+        target_values = {key: -value for key, value in post_tax_contributions.items() if value < 0}
+    else:
+        source_values = {key: -value for key, value in post_tax_contributions.items() if value < 0}
+        target_values = {key: value for key, value in post_tax_contributions.items() if value >= 0}
+    target_values["net_income"] = abs(f["net_income"].value_millions)
+    ribbons.extend(
+        _packed_flows(
+            nodes,
+            source_values,
+            target_values,
+            "net_income",
+            width_value,
+            income_target=net_is_income,
+        )
+    )
+    return list(nodes.values()), ribbons
+
+
 def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     if quarter.ticker.upper() == "AMZN":
         return _layout_amazon(quarter)
+    if quarter.ticker.upper() == "GOOGL":
+        return _layout_alphabet(quarter)
     return _layout_meta(quarter)
 
 
@@ -431,6 +649,23 @@ AMAZON_LABEL_KEYS = (
     "net_income",
 )
 
+ALPHABET_LABEL_KEYS = (
+    "google_services_revenue",
+    "google_cloud_revenue",
+    "other_bets_revenue",
+    "revenue",
+    "gross_profit",
+    "cost_of_revenue",
+    "operating_income",
+    "research_and_development",
+    "sales_and_marketing",
+    "general_and_administrative",
+    "pretax_income",
+    "nonoperating_income_expense",
+    "income_tax",
+    "net_income",
+)
+
 VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
 }
@@ -464,7 +699,7 @@ def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[fl
 
 
 def _label_font_sizes(quarter: Quarter) -> Tuple[int, int]:
-    if quarter.ticker.upper() == "AMZN":
+    if quarter.ticker.upper() in ("AMZN", "GOOGL"):
         return AMAZON_LABEL_TITLE_FONT_SIZE, AMAZON_LABEL_VALUE_FONT_SIZE
     return LABEL_TITLE_FONT_SIZE, LABEL_VALUE_FONT_SIZE
 
@@ -673,7 +908,18 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
             f'fill="{node.color}"/>'
         )
     nodes_by_key = {node.key: node for node in nodes}
-    label_keys = AMAZON_LABEL_KEYS if quarter.ticker.upper() == "AMZN" else LABEL_KEYS
+    if quarter.ticker.upper() == "AMZN":
+        label_keys = AMAZON_LABEL_KEYS
+    elif quarter.ticker.upper() == "GOOGL":
+        label_keys = ALPHABET_LABEL_KEYS
+    else:
+        label_keys = LABEL_KEYS
+    # Only label facts that are present and actually drawn as nodes. Alphabet's
+    # optional segment revenue lines are omitted from filings that do not tag
+    # them, so their label cards must be skipped too.
+    label_keys = tuple(
+        key for key in label_keys if key in quarter.facts and key in nodes_by_key
+    )
     title_font_size, value_font_size = _label_font_sizes(quarter)
     positions = {
         key: _fit_label_to_canvas(
