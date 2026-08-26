@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from .models import FinancialFact, Provenance, Quarter
 
@@ -7,12 +7,21 @@ class FactSelectionError(ValueError):
     pass
 
 
+def _canonical_dimensions(dimensions: dict) -> dict:
+    """Treat Meta's pre-rename ``fb`` taxonomy prefix as its ``meta`` successor."""
+    return {
+        key.replace("fb:", "meta:", 1): value.replace("fb:", "meta:", 1)
+        for key, value in dimensions.items()
+    }
+
+
 def _matches(raw: dict, concept: str, start: str, end: str, dimensions: dict) -> bool:
     return (
         raw["concept"] == concept
         and raw["start_date"] == start
         and raw["end_date"] == end
-        and raw.get("dimensions", {}) == dimensions
+        and _canonical_dimensions(raw.get("dimensions", {}))
+        == _canonical_dimensions(dimensions)
         and raw.get("unit") == "usd"
     )
 
@@ -56,30 +65,44 @@ def _provenance(raw: dict, source: dict) -> Provenance:
     )
 
 
-def normalize_meta(config: dict, extracted: dict, quarter_key: str) -> Quarter:
+def normalize_meta(
+    config: dict,
+    extracted: dict,
+    quarter_key: str,
+    *,
+    current_extracted: Optional[dict] = None,
+    prior_extracted: Optional[dict] = None,
+    allow_missing_prior: Sequence[str] = (),
+) -> Quarter:
     quarter_config = config["quarters"][quarter_key]
-    source = extracted["source"]
+    current_input = current_extracted or extracted
+    prior_input = prior_extracted or extracted
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
         current = _select(
-            extracted["facts"],
+            current_input["facts"],
             selector,
             quarter_config["start_date"],
             quarter_config["end_date"],
         )
-        prior = _select(
-            extracted["facts"],
-            selector,
-            quarter_config["prior_start_date"],
-            quarter_config["prior_end_date"],
-        )
+        try:
+            prior = _select(
+                prior_input["facts"],
+                selector,
+                quarter_config["prior_start_date"],
+                quarter_config["prior_end_date"],
+            )
+        except FactSelectionError:
+            if key not in allow_missing_prior:
+                raise
+            prior = None
         facts[key] = FinancialFact(
             key=key,
             label=selector["label"],
             value_millions=_millions(current["value"]),
-            prior_value_millions=_millions(prior["value"]),
+            prior_value_millions=_millions(prior["value"]) if prior else None,
             status=selector["status"],
-            provenance=[_provenance(current, source)],
+            provenance=[_provenance(current, current_input["source"])],
         )
 
     revenue = facts["revenue"]
@@ -100,6 +123,87 @@ def normalize_meta(config: dict, extracted: dict, quarter_key: str) -> Quarter:
         ticker=config["ticker"],
         fiscal_year=int(year),
         fiscal_quarter=int(q),
+        start_date=quarter_config["start_date"],
+        end_date=quarter_config["end_date"],
+        currency="USD",
+        scale="millions",
+        facts=facts,
+    )
+
+
+def normalize_meta_q4(
+    config: dict,
+    annual_extracted: dict,
+    nine_month_current_extracted: dict,
+    nine_month_prior_extracted: dict,
+    quarter_key: str,
+    *,
+    allow_missing_prior: Sequence[str] = (),
+) -> Quarter:
+    """Derive standalone Q4 values as annual reported facts minus nine months."""
+    year = int(quarter_key[:4])
+    quarter_config = config["quarters"][quarter_key]
+    current_annual_period = (f"{year}-01-01", f"{year}-12-31")
+    prior_annual_period = (f"{year - 1}-01-01", f"{year - 1}-12-31")
+    current_nine_period = (f"{year}-01-01", f"{year}-09-30")
+    prior_nine_period = (f"{year - 1}-01-01", f"{year - 1}-09-30")
+    facts: Dict[str, FinancialFact] = {}
+    for key, selector in config["selectors"].items():
+        annual_current = _select(
+            annual_extracted["facts"], selector, *current_annual_period
+        )
+        nine_current = _select(
+            nine_month_current_extracted["facts"], selector, *current_nine_period
+        )
+        try:
+            annual_prior = _select(
+                annual_extracted["facts"], selector, *prior_annual_period
+            )
+            nine_prior = _select(
+                nine_month_prior_extracted["facts"], selector, *prior_nine_period
+            )
+        except FactSelectionError:
+            if key not in allow_missing_prior:
+                raise
+            annual_prior = None
+            nine_prior = None
+        prior_value = None
+        if annual_prior is not None and nine_prior is not None:
+            prior_value = _millions(annual_prior["value"]) - _millions(nine_prior["value"])
+        facts[key] = FinancialFact(
+            key=key,
+            label=selector["label"],
+            value_millions=(
+                _millions(annual_current["value"]) - _millions(nine_current["value"])
+            ),
+            prior_value_millions=prior_value,
+            status="derived",
+            provenance=[
+                _provenance(annual_current, annual_extracted["source"]),
+                _provenance(nine_current, nine_month_current_extracted["source"]),
+            ],
+            derivation="annual reported value - nine-month reported value",
+        )
+
+    revenue = facts["revenue"]
+    cost = facts["cost_of_revenue"]
+    prior_gross = None
+    if revenue.prior_value_millions is not None and cost.prior_value_millions is not None:
+        prior_gross = revenue.prior_value_millions - cost.prior_value_millions
+    facts["gross_profit"] = FinancialFact(
+        key="gross_profit",
+        label="Gross profit",
+        value_millions=revenue.value_millions - cost.value_millions,
+        prior_value_millions=prior_gross,
+        status="derived",
+        provenance=revenue.provenance + cost.provenance,
+        derivation="revenue - cost_of_revenue",
+    )
+    return Quarter(
+        company=config["company"],
+        ticker=config["ticker"],
+        fiscal_year=year,
+        fiscal_quarter=4,
         start_date=quarter_config["start_date"],
         end_date=quarter_config["end_date"],
         currency="USD",

@@ -2,6 +2,7 @@ import hashlib
 import json
 import time
 import urllib.request
+from urllib.error import HTTPError, URLError
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List
@@ -11,10 +12,26 @@ XBRL_NS = "http://www.xbrl.org/2003/instance"
 XBRLDI_NS = "http://xbrl.org/2006/xbrldi"
 
 
-def download_xbrl(url: str, destination: Path, user_agent: str) -> Path:
-    """Download once into an immutable-by-convention cache."""
+def _validate_user_agent(user_agent: str) -> None:
     if "@" not in user_agent or len(user_agent) < 8:
         raise ValueError("SEC User-Agent must identify a person or organization and email")
+
+
+def fetch_sec_json(url: str, user_agent: str) -> dict:
+    """Fetch a JSON response from an SEC endpoint under fair-access pacing."""
+    _validate_user_agent(user_agent)
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    time.sleep(0.12)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Could not fetch SEC JSON {url}: {exc}") from exc
+
+
+def download_xbrl(url: str, destination: Path, user_agent: str) -> Path:
+    """Download once into an immutable-by-convention cache."""
+    _validate_user_agent(user_agent)
     if destination.exists():
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)

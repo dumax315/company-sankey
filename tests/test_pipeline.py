@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import stankey.render as render_module
+import stankey.cli as cli_module
 from stankey.cli import (
     DEFAULT_CONFIG,
     DEFAULT_FIXTURE,
@@ -15,7 +16,7 @@ from stankey.cli import (
     generate_series,
     quarter_sequence,
 )
-from stankey.normalize import normalize_meta
+from stankey.normalize import normalize_meta, normalize_meta_q4
 from stankey.sec import load_json
 from stankey.validate import ReconciliationError, validate_quarter
 
@@ -44,18 +45,109 @@ def test_all_accounting_identities_pass(quarter):
     assert all(check.passed for check in checks)
 
 
+def test_q4_normalization_derives_annual_less_nine_months(quarter):
+    config = deepcopy(load_json(DEFAULT_CONFIG))
+    config["quarters"]["2025Q4"] = {
+        "start_date": "2025-10-01",
+        "end_date": "2025-12-31",
+        "prior_start_date": "2024-10-01",
+        "prior_end_date": "2024-12-31",
+    }
+    annual_facts = []
+    nine_month_facts = []
+    for index, (key, selector) in enumerate(config["selectors"].items()):
+        current_value = quarter.facts[key].value_millions
+        prior_value = quarter.facts[key].prior_value_millions
+        for facts, start, end, value, context_suffix in (
+            (annual_facts, "2025-01-01", "2025-12-31", current_value + 100_000, "ac"),
+            (annual_facts, "2024-01-01", "2024-12-31", prior_value + 90_000, "ap"),
+            (nine_month_facts, "2025-01-01", "2025-09-30", 100_000, "nc"),
+            (nine_month_facts, "2024-01-01", "2024-09-30", 90_000, "np"),
+        ):
+            facts.append(
+                {
+                    "concept": selector["concept"],
+                    "value": str(value * 1_000_000),
+                    "unit": "usd",
+                    "decimals": "-6",
+                    "context_id": f"{index}-{context_suffix}",
+                    "start_date": start,
+                    "end_date": end,
+                    "dimensions": selector["dimensions"],
+                }
+            )
+    source = {
+        "url": "https://www.sec.gov/example.xml",
+        "accession": "example",
+        "document": "example.xml",
+        "filing_date": "2026-01-01",
+    }
+    annual = {"source": source, "facts": annual_facts}
+    nine_month = {"source": source, "facts": nine_month_facts}
+
+    q4 = normalize_meta_q4(config, annual, nine_month, nine_month, "2025Q4")
+
+    assert q4.facts["revenue"].value_millions == quarter.facts["revenue"].value_millions
+    assert q4.facts["revenue"].prior_value_millions == quarter.facts["revenue"].prior_value_millions
+    assert q4.facts["revenue"].status == "derived"
+    assert len(q4.facts["revenue"].provenance) == 2
+    assert all(check.passed for check in validate_quarter(q4))
+
+
 def test_labels_follow_node_positions_and_center_when_vertical(quarter):
     nodes, ribbons = render_module._layout(quarter)
     for node in nodes:
         x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons)
         if placement == "above":
             assert x == node.x + 11
-            assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(node.key, -35)
+            assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(node.key, -50)
             assert anchor == "middle"
         elif placement == "below":
             assert x == node.x + 11
             assert y == node.y + node.height + 30
             assert anchor == "middle"
+
+
+def test_above_labels_pack_horizontally_without_vertical_stacking(quarter):
+    nodes, ribbons = render_module._layout(quarter)
+    nodes_by_key = {node.key: node for node in nodes}
+    positions = {
+        key: render_module._fit_label_to_canvas(
+            quarter.facts[key],
+            render_module._label_position(key, nodes_by_key[key], ribbons),
+        )
+        for key in render_module.LABEL_KEYS
+    }
+    initial_positions = dict(positions)
+    positions = render_module._pack_above_labels(quarter, positions)
+    positions = render_module._resolve_label_spacing(quarter, positions)
+    top_positions = [position for position in positions.values() if position[4] == "above"]
+
+    assert len({position[1] for position in top_positions}) == 1
+    for key, position in positions.items():
+        if position[4] == "above":
+            assert position[0] == pytest.approx(nodes_by_key[key].x + 11)
+    assert positions == initial_positions
+    render_module._validate_label_spacing(quarter, positions)
+
+
+def test_profit_bridge_ribbons_follow_income_and_benefit_signs(quarter):
+    positive_nonoperating = deepcopy(quarter)
+    positive_nonoperating.facts["nonoperating_income_expense"].value_millions = 100
+    _, ribbons = render_module._layout(positive_nonoperating)
+    assert any(
+        ribbon.source_key == "nonoperating_income_expense"
+        and ribbon.target_key == "pretax_income"
+        for ribbon in ribbons
+    )
+
+    tax_benefit = deepcopy(quarter)
+    tax_benefit.facts["income_tax"].value_millions = -100
+    _, ribbons = render_module._layout(tax_benefit)
+    assert any(
+        ribbon.source_key == "income_tax" and ribbon.target_key == "net_income"
+        for ribbon in ribbons
+    )
 
 
 def test_primary_profit_spine_stays_horizontal(quarter):
@@ -125,6 +217,8 @@ def test_generate_writes_square_assets_and_auditable_manifest(tmp_path: Path):
     svg = svg_path.read_text(encoding="utf-8")
     assert svg.count('class="ribbon"') == 14
     assert svg.count('class="node"') == 15
+    assert "stroke-dasharray" not in svg
+    assert "* values are derived." in svg
     assert 'data-key="advertising_revenue" data-round-left="true" data-round-right="false"' in svg
     assert 'data-key="revenue" data-round-left="false" data-round-right="false"' in svg
     assert 'data-key="net_income" data-round-left="false" data-round-right="true"' in svg
@@ -205,12 +299,14 @@ def test_generate_series_uses_one_subdirectory_per_quarter(tmp_path: Path):
     assert (quarter_dir / "01_META_2026_Q2.png").is_file()
     assert (quarter_dir / "01_META_2026_Q2.svg").is_file()
     assert (quarter_dir / "01_META_2026_Q2.json").is_file()
+    assert (tmp_path / "png" / "01_META_2026_Q2.png").is_file()
     payload = json.loads(series_manifest.read_text(encoding="utf-8"))
     assert payload["quarters"] == [
         {
             "quarter": "2026Q2",
             "directory": "2026Q2",
             "manifest": "2026Q2/01_META_2026_Q2.json",
+            "png": "png/01_META_2026_Q2.png",
         }
     ]
 
@@ -229,3 +325,59 @@ def test_generate_series_preflights_missing_quarters_before_writing(tmp_path: Pa
     with pytest.raises(ValueError, match="2026Q1"):
         generate_series(args)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_generate_series_discovers_missing_fetch_sec_quarters(tmp_path: Path, monkeypatch):
+    config_path = tmp_path / "meta.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "company": "Meta Platforms, Inc.",
+                "ticker": "META",
+                "cik": "0001326801",
+                "quarters": {"2026Q2": {}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    discovered_q1 = {
+        "start_date": "2026-01-01",
+        "end_date": "2026-03-31",
+        "prior_start_date": "2025-01-01",
+        "prior_end_date": "2025-03-31",
+        "fixture": "unused.json",
+        "source": {},
+    }
+    monkeypatch.setattr(
+        cli_module,
+        "discover_filings",
+        lambda *args, **kwargs: {
+            "quarters": {"2026Q1": discovered_q1},
+            "warnings": [],
+        },
+    )
+    generated = []
+
+    def fake_generate(args):
+        assert "2026Q1" in args.config_data["quarters"]
+        generated.append(args.quarter)
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        manifest = args.output_dir / f"{args.quarter}.json"
+        manifest.with_suffix(".png").write_bytes(b"png")
+        return manifest
+
+    monkeypatch.setattr(cli_module, "generate", fake_generate)
+    args = argparse.Namespace(
+        ticker="META",
+        quarters=2,
+        from_quarter="2026Q2",
+        output_dir=tmp_path / "outputs",
+        fetch_sec=True,
+        user_agent="Test Person test@example.com",
+        config=config_path,
+        png_size=1080,
+    )
+
+    generate_series(args)
+
+    assert generated == ["2026Q2", "2026Q1"]

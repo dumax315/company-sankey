@@ -21,8 +21,9 @@ PINK_FLOW = "#dc6792"
 MUTED = "#5c6872"
 LABEL_CARD = "#ffffff"
 LABEL_CARD_OPACITY = 0.82
-LABEL_CARD_PADDING_X = 10
-LABEL_CARD_GAP = 10
+LABEL_CARD_PADDING_X = 6
+LABEL_CARD_GAP = 8
+LABEL_CARD_VERTICAL_GAP = 1
 GEOMETRY_EPSILON = 0.01
 
 
@@ -127,7 +128,9 @@ def _node_rounding(node: Node, ribbons: Sequence[Ribbon]) -> Tuple[bool, bool]:
 def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     f = quarter.facts
     scale = 3.3 / 1000.0
-    h = lambda key: max(1.2, f[key].value_millions * scale)
+    h = lambda key: max(1.2, abs(f[key].value_millions) * scale)
+    nonoperating_is_income = f["nonoperating_income_expense"].value_millions >= 0
+    income_tax_is_benefit = f["income_tax"].value_millions < 0
     nodes = {
         "advertising_revenue": Node("advertising_revenue", 180, 340, h("advertising_revenue"), BLUE),
         "other_foa_revenue": Node("other_foa_revenue", 180, 575, h("other_foa_revenue"), BLUE),
@@ -140,10 +143,22 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         "research_and_development": Node("research_and_development", 710, 540, h("research_and_development"), PINK),
         "general_and_administrative": Node("general_and_administrative", 710, 650, h("general_and_administrative"), PINK),
         "marketing_and_sales": Node("marketing_and_sales", 710, 735, h("marketing_and_sales"), PINK),
-        "pretax_income": Node("pretax_income", 800, 340, h("pretax_income"), GREEN),
-        "nonoperating_income_expense": Node("nonoperating_income_expense", 800, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
-        "net_income": Node("net_income", 894, 340, h("net_income"), GREEN),
-        "income_tax": Node("income_tax", 874, 520, h("income_tax"), PINK),
+        "pretax_income": Node("pretax_income", 863, 340, h("pretax_income"), GREEN),
+        "nonoperating_income_expense": Node(
+            "nonoperating_income_expense",
+            818 if nonoperating_is_income else 863,
+            450,
+            h("nonoperating_income_expense"),
+            GREEN if nonoperating_is_income else PINK,
+        ),
+        "net_income": Node("net_income", 900, 340, h("net_income"), GREEN),
+        "income_tax": Node(
+            "income_tax",
+            800 if income_tax_is_benefit else 895,
+            470 if income_tax_is_benefit else 520,
+            h("income_tax"),
+            GREEN if income_tax_is_benefit else PINK,
+        ),
     }
 
     def width(key: str) -> float:
@@ -168,11 +183,19 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     ):
         ribbons.append(Ribbon("gross_profit", key, nodes["gross_profit"].right, source_y, nodes[key].x, nodes[key].y, width(key), color))
         source_y += width(key)
-    # Profit bridge; the negative non-operating value is an outflow.
-    ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width("pretax_income"), GREEN_FLOW))
-    ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y + width("pretax_income"), nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width("nonoperating_income_expense"), PINK_FLOW))
-    ribbons.append(Ribbon("pretax_income", "net_income", nodes["pretax_income"].right, nodes["pretax_income"].y, nodes["net_income"].x, nodes["net_income"].y, width("net_income"), GREEN_FLOW))
-    ribbons.append(Ribbon("pretax_income", "income_tax", nodes["pretax_income"].right, nodes["pretax_income"].y + width("net_income"), nodes["income_tax"].x, nodes["income_tax"].y, width("income_tax"), PINK_FLOW))
+    # Profit bridge: gains and tax benefits flow into profit; expenses flow out.
+    if nonoperating_is_income:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width("operating_income"), GREEN_FLOW))
+        ribbons.append(Ribbon("nonoperating_income_expense", "pretax_income", nodes["nonoperating_income_expense"].right, nodes["nonoperating_income_expense"].y, nodes["pretax_income"].x, nodes["pretax_income"].y + width("operating_income"), width("nonoperating_income_expense"), GREEN_FLOW))
+    else:
+        ribbons.append(Ribbon("operating_income", "pretax_income", nodes["operating_income"].right, nodes["operating_income"].y, nodes["pretax_income"].x, nodes["pretax_income"].y, width("pretax_income"), GREEN_FLOW))
+        ribbons.append(Ribbon("operating_income", "nonoperating_income_expense", nodes["operating_income"].right, nodes["operating_income"].y + width("pretax_income"), nodes["nonoperating_income_expense"].x, nodes["nonoperating_income_expense"].y, width("nonoperating_income_expense"), PINK_FLOW))
+    if income_tax_is_benefit:
+        ribbons.append(Ribbon("pretax_income", "net_income", nodes["pretax_income"].right, nodes["pretax_income"].y, nodes["net_income"].x, nodes["net_income"].y, width("pretax_income"), GREEN_FLOW))
+        ribbons.append(Ribbon("income_tax", "net_income", nodes["income_tax"].right, nodes["income_tax"].y, nodes["net_income"].x, nodes["net_income"].y + width("pretax_income"), width("income_tax"), GREEN_FLOW))
+    else:
+        ribbons.append(Ribbon("pretax_income", "net_income", nodes["pretax_income"].right, nodes["pretax_income"].y, nodes["net_income"].x, nodes["net_income"].y, width("net_income"), GREEN_FLOW))
+        ribbons.append(Ribbon("pretax_income", "income_tax", nodes["pretax_income"].right, nodes["pretax_income"].y + width("net_income"), nodes["income_tax"].x, nodes["income_tax"].y, width("income_tax"), PINK_FLOW))
     return list(nodes.values()), ribbons
 
 
@@ -198,9 +221,7 @@ VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
 }
 
-ABOVE_LABEL_OFFSETS = {
-    "pretax_income": -90,
-}
+ABOVE_LABEL_OFFSETS = {}
 
 
 def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[float, float, str, str, str]:
@@ -215,7 +236,7 @@ def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[fl
         return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
     return (
         node.x + 11,
-        node.y + ABOVE_LABEL_OFFSETS.get(key, -35),
+        node.y + ABOVE_LABEL_OFFSETS.get(key, -50),
         "middle",
         "internal",
         "above",
@@ -263,6 +284,70 @@ def _label_card(key: str, fact: FinancialFact, position: Tuple[float, float, str
     )
 
 
+def _bounds_are_separated(left: tuple, right: tuple) -> bool:
+    left_x, left_y, left_width, left_height = left
+    right_x, right_y, right_width, right_height = right
+    return (
+        left_x + left_width + LABEL_CARD_GAP <= right_x + GEOMETRY_EPSILON
+        or right_x + right_width + LABEL_CARD_GAP <= left_x + GEOMETRY_EPSILON
+        or left_y + left_height + LABEL_CARD_VERTICAL_GAP <= right_y + GEOMETRY_EPSILON
+        or right_y + right_height + LABEL_CARD_VERTICAL_GAP <= left_y + GEOMETRY_EPSILON
+    )
+
+
+def _pack_above_labels(quarter: Quarter, positions: dict) -> dict:
+    """Keep internal-node cards on one row and resolve collisions horizontally."""
+    packed = dict(positions)
+    keys = sorted(
+        (key for key, position in positions.items() if position[4] == "above"),
+        key=lambda key: positions[key][0],
+    )
+    if not keys:
+        return packed
+    widths = {key: _label_card_width(quarter.facts[key]) for key in keys}
+    available_width = WIDTH - 32
+    required_width = sum(widths.values()) + LABEL_CARD_GAP * (len(keys) - 1)
+    if required_width > available_width + GEOMETRY_EPSILON:
+        raise ValueError("Top label cards cannot fit on one horizontal row")
+
+    lefts = {}
+    next_left = 16.0
+    for key in keys:
+        desired_left = _label_left(positions[key][0], positions[key][2], widths[key])
+        lefts[key] = max(desired_left, next_left)
+        next_left = lefts[key] + widths[key] + LABEL_CARD_GAP
+    overflow = lefts[keys[-1]] + widths[keys[-1]] - (WIDTH - 16)
+    if overflow > 0:
+        lefts = {key: left - overflow for key, left in lefts.items()}
+    if lefts[keys[0]] < 16 - GEOMETRY_EPSILON:
+        raise ValueError("Top label cards cannot fit within the canvas")
+
+    row_y = positions[keys[0]][1]
+    for key in keys:
+        _, _, anchor, role, placement = positions[key]
+        if anchor != "middle":
+            raise ValueError(f"Top label must use a centered anchor: {key}")
+        packed_x = lefts[key] + widths[key] / 2
+        if abs(packed_x - positions[key][0]) > GEOMETRY_EPSILON:
+            raise ValueError(
+                f"Top label cannot remain centered without overlap: {key}"
+            )
+        packed[key] = (
+            packed_x,
+            row_y,
+            anchor,
+            role,
+            placement,
+        )
+    return packed
+
+
+def _resolve_label_spacing(quarter: Quarter, positions: dict) -> dict:
+    """Reject collisions instead of detaching a label from its node."""
+    _validate_label_spacing(quarter, positions)
+    return dict(positions)
+
+
 def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
     bounds = {
         key: _label_card_bounds(quarter.facts[key], position)
@@ -270,18 +355,8 @@ def _validate_label_spacing(quarter: Quarter, positions: dict) -> None:
     }
     keys = list(bounds)
     for index, left_key in enumerate(keys):
-        left_x, left_y, left_width, left_height = bounds[left_key]
-        left_right = left_x + left_width
-        left_bottom = left_y + left_height
         for right_key in keys[index + 1 :]:
-            right_x, right_y, right_width, right_height = bounds[right_key]
-            separated = (
-                left_right + LABEL_CARD_GAP <= right_x + GEOMETRY_EPSILON
-                or right_x + right_width + LABEL_CARD_GAP <= left_x + GEOMETRY_EPSILON
-                or left_bottom + LABEL_CARD_GAP <= right_y + GEOMETRY_EPSILON
-                or right_y + right_height + LABEL_CARD_GAP <= left_y + GEOMETRY_EPSILON
-            )
-            if not separated:
+            if not _bounds_are_separated(bounds[left_key], bounds[right_key]):
                 raise ValueError(f"Label cards are too close: {left_key} and {right_key}")
 
 
@@ -314,13 +389,11 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
     for ribbon in ribbons:
         lines.append(f'<path class="ribbon" d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
     for node in nodes:
-        fact = quarter.facts[node.key]
-        dash = ' stroke-dasharray="5 3" stroke-width="3" stroke="#12683d"' if fact.status == "derived" else ""
         round_left, round_right = _node_rounding(node, ribbons)
         lines.append(
             f'<path class="node" data-key="{node.key}" data-round-left="{str(round_left).lower()}" '
             f'data-round-right="{str(round_right).lower()}" d="{_node_path(node, round_left, round_right)}" '
-            f'fill="{node.color}"{dash}/>'
+            f'fill="{node.color}"/>'
         )
     nodes_by_key = {node.key: node for node in nodes}
     positions = {
@@ -330,6 +403,8 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         )
         for key in LABEL_KEYS
     }
+    positions = _pack_above_labels(quarter, positions)
+    positions = _resolve_label_spacing(quarter, positions)
     _validate_label_spacing(quarter, positions)
     for key in LABEL_KEYS:
         fact = quarter.facts[key]
@@ -342,7 +417,7 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',
             f'<text x="42" y="980" font-family="Arial,sans-serif" font-size="14" fill="{INK}">Source: {escape(quarter.company)} SEC filing dated {_display_date(source.filing_date)} • accession {escape(source.accession)}</text>',
-            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. Gross profit* is derived. Segment labels use Meta-specific XBRL dimensions.</text>',
+            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. * values are derived. Segment labels use Meta-specific XBRL dimensions.</text>',
             f'<text x="42" y="1028" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Values mapped from filing XBRL; flows may omit disclosures outside this income-statement bridge.</text>',
             "</svg>",
         ]
