@@ -90,7 +90,7 @@ def test_amazon_loss_quarter_reconciles_and_renders(tmp_path: Path):
     svg = destination.read_text(encoding="utf-8")
     assert svg.count('class="label-card"') == 17
     assert 'font-size="18" font-weight="700"' in svg
-    assert 'font-size="16" fill=' in svg
+    assert 'font-size="16" font-weight="700" fill=' in svg
     assert "−$5.3B" in svg
     assert "−$3.9B" in svg
 

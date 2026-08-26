@@ -105,6 +105,13 @@ Use `--from-quarter 2025Q4` to reproduce a range from a specific point. The
 command validates that every requested quarter has source metadata before
 starting generation.
 
+The flat `png/` copies get modification timestamps set to `now - N*1min`, where
+`N` is the sequence number in the filename (`01` is the newest quarter and gets
+the latest timestamp, higher numbers are older quarters and get earlier
+timestamps). This makes the images sort chronologically in a phone's photo
+gallery. The per-quarter originals under each `<quarter>/` folder are left
+untouched.
+
 The PNG is rasterized from the exact saved SVG with resvg, so there is only
 one layout implementation. Override the square master size when needed, for
 example `--png-size 2160`. resvg supports the SVG features used here:

@@ -474,7 +474,7 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
             )
         )
         lines.append(f'<text x="{x}" y="{y - 1}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="{title_font_size}" font-weight="700" fill="{INK}">{escape(fact.label)}</text>')
-        lines.append(f'<text x="{x}" y="{y + 21}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="{value_font_size}" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
+        lines.append(f'<text x="{x}" y="{y + 21}" text-anchor="{anchor}" font-family="Arial,sans-serif" font-size="{value_font_size}" font-weight="700" fill="{MUTED}">{escape(_format_fact(fact))}</text>')
     lines.extend(
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',

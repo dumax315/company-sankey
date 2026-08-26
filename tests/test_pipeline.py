@@ -2,6 +2,7 @@ import argparse
 import inspect
 import json
 import struct
+import time
 from copy import deepcopy
 from pathlib import Path
 
@@ -318,6 +319,35 @@ def test_generate_series_uses_one_subdirectory_per_quarter(tmp_path: Path):
             "png": "png/01_META_2026_Q2.png",
         }
     ]
+
+
+def test_generate_series_sets_chronological_mtime_on_flat_png_copies(tmp_path: Path):
+    before = time.time()
+    args = argparse.Namespace(
+        ticker="META",
+        quarters=1,
+        from_quarter=None,
+        output_dir=tmp_path,
+        fetch_sec=False,
+        user_agent=None,
+        config=DEFAULT_CONFIG,
+        png_size=3240,
+    )
+    generate_series(args)
+    after = time.time()
+
+    flat_png = tmp_path / "png" / "01_META_2026_Q2.png"
+    original_png = tmp_path / "2026Q2" / "01_META_2026_Q2.png"
+    assert flat_png.is_file()
+    assert original_png.is_file()
+
+    # Index 01 (newest quarter) is anchored at now - 1*60s.
+    flat_mtime = flat_png.stat().st_mtime
+    assert before - 60 - 2 <= flat_mtime <= after - 60 + 2
+    assert flat_mtime < before
+
+    # The per-quarter original is left untouched, not forced to the flat value.
+    assert original_png.stat().st_mtime != flat_mtime
 
 
 def test_generate_series_preflights_missing_quarters_before_writing(tmp_path: Path):

@@ -290,10 +290,17 @@ def generate_series(args: argparse.Namespace) -> Path:
     png_dir = args.output_dir / "png"
     png_dir.mkdir(parents=True, exist_ok=True)
     png_paths = []
-    for manifest in manifests:
+    # Set each flat-folder copy's mtime to now - sequence_index * 60s so the
+    # photos sort chronologically on a phone: the newest quarter (index 01)
+    # gets the latest timestamp, the oldest quarter gets the earliest. The
+    # per-quarter originals are left untouched.
+    now_epoch = datetime.now(timezone.utc).timestamp()
+    for sequence_index, manifest in enumerate(manifests, start=1):
         source_png = manifest.with_suffix(".png")
         destination_png = png_dir / source_png.name
         shutil.copy2(source_png, destination_png)
+        target = now_epoch - sequence_index * 60
+        os.utime(destination_png, (target, target))
         png_paths.append(destination_png)
 
     series_manifest = args.output_dir / f"{args.ticker.upper()}_{start}_{len(quarters)}_quarters.json"
