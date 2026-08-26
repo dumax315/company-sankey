@@ -24,16 +24,32 @@ configs/companies/<slug>.json  (selectors map fact keys ──▶ concept + dime
 normalize_meta / normalize_meta_q4  ──▶ Quarter(facts={key: FinancialFact})
         │
         ▼
-validate_quarter  (per-ticker reconciliation identities)
+validate_quarter  (dispatches to the company adapter's reconciliation checks)
         │
         ▼
-render_svg → _layout_<company> → SVG → resvg → PNG + JSON manifest
+render_svg → adapter.layout → SVG → resvg → PNG + JSON manifest
 ```
 
 `normalize_meta`, `normalize_meta_q4`, `discover_filings`, and the CLI are all
-**generic** and rarely need per-company changes. The three places you almost
-always touch are the **config**, the **validator branch**, and the **layout
-function**.
+**generic** and rarely need per-company changes. Everything that varies between
+companies now lives in a single **adapter module** under
+`src/stankey/companies/`. Adding a company means adding that one module (plus a
+config and a test) — the core files (`render.py`, `validate.py`, `cli.py`) no
+longer grow per company.
+
+Each company registers a `CompanyAdapter` (see
+`src/stankey/companies/__init__.py`) that carries:
+
+- `ticker`, `slug`, `config_filename`
+- `layout(quarter)` → `(nodes, ribbons)` — the Sankey layout
+- `label_keys` — the ordered label-card keys
+- `build_checks(facts, tolerance, check)` — the reconciliation identities
+- `large_label_fonts` — 18/16pt cards (the default); set `False` for 16/14pt
+- `below_terminals` — keys whose terminal label sits below the node
+- `quirks` — optional filing-specific CLI hooks (Meta-style recast / Q4 derivation)
+
+The three places you always touch are the **config**, the **adapter module**,
+and the adapter's **`build_checks`** and **`layout`**.
 
 ## Step 0 — Investigate the real XBRL first (do not skip)
 
@@ -123,54 +139,80 @@ Notes:
 - `gross_profit` is **derived automatically** by `normalize_meta` as
   `revenue - cost_of_revenue`. Do **not** add a `gross_profit` selector; just
   ensure `revenue` and `cost_of_revenue` exist.
-- Fact **keys** are the contract between config, validator, and layout. Whatever
-  keys you define here are exactly what you reference in `validate.py` and
-  `_layout_<company>`.
+- Fact **keys** are the contract between config, adapter checks, and adapter
+  layout. Whatever keys you define here are exactly what you reference in your
+  adapter's `build_checks` and `layout`.
 - `_select` matches on concept **and** period **and** dimensions **and**
   `unit == usd`, prefers the most precise `decimals`, and errors if the surviving
   matches disagree in value. Duplicate identical values (same number under two
   concept aliases) are fine — they dedupe.
 
-## Step 2 — Add the reconciliation branch in `src/stankey/validate.py`
+## Step 2 — Create the adapter module `src/stankey/companies/<slug>.py`
 
-`validate_quarter` branches on `quarter.ticker.upper()`. Add a branch for your
-ticker before the final (Meta) fallback:
+Copy `companies/amazon.py` (richest example) or `companies/alphabet.py` (optional
+segments) and adjust. The module defines the layout and checks, then calls
+`register(CompanyAdapter(...))` at import time. Finally add the module name to
+`_ADAPTER_MODULES` in `companies/__init__.py` so it self-registers when the
+package loads.
+
+Skeleton:
 
 ```python
-if quarter.ticker.upper() == "TICKER":
-    checks = [
-        _check("revenue less cost equals gross profit",
-               f["gross_profit"].value_millions,
-               f["revenue"].value_millions - f["cost_of_revenue"].value_millions,
-               tolerance_millions),
-        # ...one _check per accounting identity...
+from ..models import Quarter
+from ..render import BLUE, GREEN, PINK, BLUE_FLOW, GREEN_FLOW, PINK_FLOW, Node, Ribbon, h_of, _packed_flows
+from . import CompanyAdapter, register
+
+LABEL_KEYS = ("revenue", "gross_profit", "cost_of_revenue", ...)  # draw order
+
+def layout(quarter: Quarter):
+    ...
+    return list(nodes.values()), ribbons
+
+def build_checks(f, tolerance_millions, check):
+    return [
+        check("revenue less cost equals gross profit",
+              f["gross_profit"].value_millions,
+              f["revenue"].value_millions - f["cost_of_revenue"].value_millions,
+              tolerance_millions),
+        # ...one check(...) per accounting identity...
     ]
-    if any(not c.passed for c in checks):
-        raise ReconciliationError(checks)
-    return checks
+
+register(CompanyAdapter(
+    ticker="TICKER",
+    slug="<slug>",
+    config_filename="<slug>.json",
+    layout=layout,
+    label_keys=LABEL_KEYS,
+    build_checks=build_checks,
+    # large_label_fonts defaults to True (18/16pt cards). Set it False only if a
+    # dense layout needs the smaller 16/14pt cards (as Meta does).
+    # below_terminals=("some_segment_revenue",),  # label below the node
+))
 ```
 
-Guidelines:
+### Reconciliation (`build_checks`)
 
-- One `_check(name, expected, actual, tolerance)` per identity. `expected` is the
+`validate_quarter` calls your adapter's `build_checks(facts, tolerance, check)`
+and raises `ReconciliationError` if any check fails. The `check` argument is the
+shared `_check` helper.
+
+- One `check(name, expected, actual, tolerance)` per identity. `expected` is the
   reported figure; `actual` is what you compute from components.
 - Default tolerance is `1` (USD million) to absorb rounding.
 - **Gate optional identities on fact presence.** If a line (e.g. segment revenue,
-  hedging adjustment) is not tagged in every period, only add its `_check` when
-  the required keys are in `f`:
+  hedging adjustment) is not tagged in every period, only add its check when the
+  required keys are in `f`:
 
   ```python
   if all(k in f for k in segment_keys) and "hedging_revenue" in f:
-      checks.append(_check("segments plus hedging equals revenue", ...))
+      checks.append(check("segments plus hedging equals revenue", ...))
   ```
 
   This is why Alphabet's segment check is conditional — see Pitfall C/D.
 
-## Step 3 — Add the layout in `src/stankey/render.py`
+### Layout (`layout`)
 
-Copy `_layout_amazon` (richest example) or `_layout_alphabet` (optional segments)
-into a new `_layout_<company>` and adjust. A layout returns
-`(list[Node], list[Ribbon])`.
+A layout returns `(list[Node], list[Ribbon])`.
 
 - `Node(key, x, y, height, color)` — a bar; `right == x + 22`. Heights scale from
   values via `h_of(f, key)` (default `scale = 0.8/1000` USD-millions→px). Colors:
@@ -188,33 +230,53 @@ into a new `_layout_<company>` and adjust. A layout returns
 - Column x-positions used so far: revenue segments ~190–210, revenue ~289–300,
   gross/cost ~479–486, operating + opex ~663, pre-tax/non-op/tax ~851, net ~873.
 
-Then wire the ticker into the four dispatchers (search for the existing tickers):
+### Adapter fields that replace the old per-company dispatchers
 
-1. `_layout(quarter)` — add `if quarter.ticker.upper() == "TICKER": return _layout_<company>(quarter)`.
-2. `_label_font_sizes(quarter)` — add your ticker to the larger-font tuple if you
-   want 18/16pt cards (`("AMZN", "GOOGL", "TICKER")`) or leave it on the 16/14 default.
-3. Add a `TICKER_LABEL_KEYS` tuple listing every card key in draw order.
-4. In `render_svg`, extend the `label_keys` selection to pick `TICKER_LABEL_KEYS`
-   for your ticker. The existing code already filters to keys that are **both**
-   in `quarter.facts` **and** in the built nodes, so optional lines that you did
-   not draw are skipped automatically.
+The core `render.py` reads everything it needs from the adapter, so there are no
+dispatch branches to edit:
 
-## Step 4 — Wire the CLI in `src/stankey/cli.py`
+1. `layout` — the function above (was `_layout_<company>` + a branch in `_layout`).
+2. `large_label_fonts` — 18/16pt cards is the default; set `False` for 16/14pt
+   (was a ticker tuple in `_label_font_sizes`).
+3. `label_keys` — the tuple listing every card key in draw order (was
+   `TICKER_LABEL_KEYS`). `render_svg` already filters to keys that are **both**
+   in `quarter.facts` **and** in the built nodes, so optional lines you did not
+   draw are skipped automatically.
+4. `below_terminals` — keys whose left-side terminal label should sit below the
+   node instead of beside it (was the `VERTICAL_TERMINALS` dict).
 
-Add one line to `COMPANY_CONFIGS`:
+## Step 3 — Register the module
+
+In `src/stankey/companies/__init__.py`, add your module to `_ADAPTER_MODULES`:
 
 ```python
-COMPANY_CONFIGS = {
-    "META": DEFAULT_CONFIG,
-    "AMZN": PROJECT_ROOT / "configs" / "companies" / "amazon.json",
-    "GOOGL": PROJECT_ROOT / "configs" / "companies" / "alphabet.json",
-    "TICKER": PROJECT_ROOT / "configs" / "companies" / "<slug>.json",
-}
+_ADAPTER_MODULES = ("meta", "amazon", "alphabet", "<slug>")
+```
+
+## Step 4 — CLI: usually nothing to do
+
+The CLI resolves the config path, output directory, and any quirks from the
+adapter registry. As long as your adapter is registered (Step 3) and your config
+`slug`/`config_filename` are set, `generate`, `generate-series`, and
+`discover-filings` work with no `cli.py` changes.
+
+Only companies with **filing-specific quirks** (like Meta's 2021 recast) need
+more. Attach a `CompanyQuirks` to the adapter:
+
+```python
+from . import CompanyAdapter, CompanyQuirks, RecastSpec, register
+
+register(CompanyAdapter(
+    ...,
+    quirks=CompanyQuirks(
+        historical_revenue_breakdowns=("advertising_revenue", ...),
+        q4_nine_month_current_key=lambda q: "2022Q3" if q == "2021Q4" else None,
+        recast=lambda q: RecastSpec("2022Q3", "…input mode…") if q == "2021Q3" else None,
+    ),
+))
 ```
 
 Outputs land under `outputs/<slug>/` automatically (via the config `slug`).
-Discovery, series generation, and Q4 derivation are generic and need no changes
-unless your company has Meta-style recast quirks (see `generate()` in `cli.py`).
 
 ## Step 5 — Add `tests/test_<company>.py`
 
@@ -280,12 +342,12 @@ appear in `quarter.facts`. Cumulative periods in 10-Ks/10-Ks may omit
 single-axis segment revenue even when the standalone quarter tags it.
 
 **D. Reconciliation and layout must both handle absent optional lines.**
-- Validator: gate the optional identity's `_check` on the keys being present
-  (Step 2). Alphabet's segment identity also requires the separately-tagged
-  hedging line, because some quarters fold the hedging adjustment into the
-  consolidated total instead of tagging it — without the tagged line the sum
-  legitimately will not match, so do not enforce it.
-- Layout: only draw a group when it is **complete**. Alphabet draws the segment
+- `build_checks`: gate the optional identity's `check(...)` on the keys being
+  present (Step 2). Alphabet's segment identity also requires the
+  separately-tagged hedging line, because some quarters fold the hedging
+  adjustment into the consolidated total instead of tagging it — without the
+  tagged line the sum legitimately will not match, so do not enforce it.
+- `layout`: only draw a group when it is **complete**. Alphabet draws the segment
   column only when **all three** segments are present; otherwise a lone tiny
   segment (Other Bets kept its member name) would appear to feed the entire
   revenue node. Suppress partial groups.

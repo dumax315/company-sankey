@@ -95,9 +95,12 @@ def test_q4_normalization_derives_annual_less_nine_months(quarter):
 
 
 def test_labels_follow_node_positions_and_center_when_vertical(quarter):
+    from stankey.companies import get_adapter
+
     nodes, ribbons = render_module._layout(quarter)
+    below = frozenset(get_adapter(quarter.ticker).below_terminals)
     for node in nodes:
-        x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons)
+        x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons, below)
         if placement == "above":
             assert x == node.x + 11
             assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(
@@ -111,14 +114,18 @@ def test_labels_follow_node_positions_and_center_when_vertical(quarter):
 
 
 def test_above_labels_pack_horizontally_without_vertical_stacking(quarter):
+    from stankey.companies import get_adapter
+
     nodes, ribbons = render_module._layout(quarter)
     nodes_by_key = {node.key: node for node in nodes}
+    label_keys = get_adapter(quarter.ticker).label_keys
+    below = frozenset(get_adapter(quarter.ticker).below_terminals)
     positions = {
         key: render_module._fit_label_to_canvas(
             quarter.facts[key],
-            render_module._label_position(key, nodes_by_key[key], ribbons),
+            render_module._label_position(key, nodes_by_key[key], ribbons, below),
         )
-        for key in render_module.LABEL_KEYS
+        for key in label_keys
     }
     initial_positions = dict(positions)
     positions = render_module._pack_above_labels(quarter, positions)

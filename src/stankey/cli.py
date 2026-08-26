@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
+from .companies import get_adapter
 from .discovery import discover_filings, quarter_sequence
 from .normalize import normalize_meta, normalize_meta_q4
 from .render import rasterize_svg, render_svg
@@ -16,19 +17,9 @@ from .validate import ReconciliationError, checks_to_dict, validate_quarter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = PROJECT_ROOT / "configs" / "companies" / "meta.json"
-COMPANY_CONFIGS = {
-    "META": DEFAULT_CONFIG,
-    "AMZN": PROJECT_ROOT / "configs" / "companies" / "amazon.json",
-    "GOOGL": PROJECT_ROOT / "configs" / "companies" / "alphabet.json",
-}
+COMPANY_CONFIG_DIR = PROJECT_ROOT / "configs" / "companies"
+DEFAULT_CONFIG = COMPANY_CONFIG_DIR / "meta.json"
 DEFAULT_FIXTURE = PROJECT_ROOT / "data" / "fixtures" / "meta_2026_q2_sec_xbrl.json"
-HISTORICAL_REVENUE_BREAKDOWNS = (
-    "advertising_revenue",
-    "other_foa_revenue",
-    "family_of_apps_revenue",
-    "reality_labs_revenue",
-)
 
 
 def _hash(path: Path) -> str:
@@ -106,10 +97,7 @@ def _latest_configured_quarter(config: dict) -> str:
 def _config_path(ticker: str, explicit: Optional[Path]) -> Path:
     if explicit is not None:
         return explicit
-    try:
-        return COMPANY_CONFIGS[ticker.upper()]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported ticker: {ticker.upper()}") from exc
+    return COMPANY_CONFIG_DIR / get_adapter(ticker).config_filename
 
 
 def _output_dir(config: dict, explicit: Optional[Path]) -> Path:
@@ -163,13 +151,20 @@ def generate(args: argparse.Namespace) -> Path:
             raise ValueError(f"Configured fixture does not exist for {quarter_key}: {fixture_path}")
         extracted = load_json(fixture_path)
 
+    quirks = get_adapter(config["ticker"]).quirks
+    historical_breakdowns = quirks.historical_revenue_breakdowns if quirks else ()
+    recast_spec = (
+        quirks.recast(quarter_key) if quirks and quirks.recast else None
+    )
+
     if args.fetch_sec and quarter_key.endswith("Q4"):
         year = quarter_key[:4]
-        nine_current_key = (
-            "2022Q3"
-            if config["ticker"].upper() == "META" and quarter_key == "2021Q4"
-            else f"{year}Q3"
+        nine_current_override = (
+            quirks.q4_nine_month_current_key(quarter_key)
+            if quirks and quirks.q4_nine_month_current_key
+            else None
         )
+        nine_current_key = nine_current_override or f"{year}Q3"
         nine_prior_key = f"{year}Q3"
         nine_current = _fetch_quarter_xbrl(config, nine_current_key, args.user_agent)
         nine_prior = (
@@ -184,27 +179,21 @@ def generate(args: argparse.Namespace) -> Path:
             nine_prior,
             quarter_key,
             allow_missing_prior=(
-                HISTORICAL_REVENUE_BREAKDOWNS
-                if config["ticker"].upper() == "META" and quarter_key == "2021Q4"
-                else ()
+                historical_breakdowns if nine_current_override else ()
             ),
         )
         input_mode = "derived Q4 from downloaded annual and nine-month SEC XBRL instances"
-    elif (
-        args.fetch_sec
-        and config["ticker"].upper() == "META"
-        and quarter_key == "2021Q3"
-    ):
-        recast = _fetch_quarter_xbrl(config, "2022Q3", args.user_agent)
+    elif args.fetch_sec and recast_spec is not None:
+        recast = _fetch_quarter_xbrl(config, recast_spec.recast_quarter_key, args.user_agent)
         quarter = normalize_meta(
             config,
             extracted,
             quarter_key,
             current_extracted=recast,
             prior_extracted=extracted,
-            allow_missing_prior=HISTORICAL_REVENUE_BREAKDOWNS,
+            allow_missing_prior=historical_breakdowns,
         )
-        input_mode = "downloaded SEC XBRL instance with subsequent-filing recast"
+        input_mode = recast_spec.input_mode
     else:
         quarter = normalize_meta(config, extracted, quarter_key)
     checks = validate_quarter(quarter)
