@@ -1,0 +1,44 @@
+{
+  "fixture_version": 1,
+  "description": "Selected facts extracted from Meta's official Q2 2026 SEC XBRL instance; values are exact filed USD amounts.",
+  "source": {
+    "url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026050705/meta-20260630_htm.xml",
+    "accession": "0001628280-26-050705",
+    "document": "meta-20260630_htm.xml",
+    "filing_date": "2026-07-30",
+    "sha256": "6716e6b0f4978717e019177bc8275ac8ea17fea03b9db7c08a0c4818e7866ba8"
+  },
+  "facts": [
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"60801000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"CostOfRevenue","value":"11330000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"ResearchAndDevelopmentExpense","value":"21656000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"SellingAndMarketingExpense","value":"3431000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"GeneralAndAdministrativeExpense","value":"5609000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"CostsAndExpenses","value":"42026000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"OperatingIncomeLoss","value":"18775000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"NonoperatingIncomeExpense","value":"-19000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest","value":"18756000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"IncomeTaxExpenseBenefit","value":"2908000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"NetIncomeLoss","value":"15848000000","unit":"usd","decimals":"-6","context_id":"c-10","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"59363000000","unit":"usd","decimals":"-6","context_id":"c-47","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{"srt:ProductOrServiceAxis":"us-gaap:AdvertisingMember","us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"1007000000","unit":"usd","decimals":"-6","context_id":"c-51","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{"srt:ProductOrServiceAxis":"us-gaap:ServiceOtherMember","us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"60370000000","unit":"usd","decimals":"-6","context_id":"c-55","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{"us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"431000000","unit":"usd","decimals":"-6","context_id":"c-59","start_date":"2026-04-01","end_date":"2026-06-30","dimensions":{"us-gaap:StatementBusinessSegmentsAxis":"meta:RealityLabsMember"}},
+
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"47516000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"CostOfRevenue","value":"8491000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"ResearchAndDevelopmentExpense","value":"12942000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"SellingAndMarketingExpense","value":"2979000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"GeneralAndAdministrativeExpense","value":"2663000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"CostsAndExpenses","value":"27075000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"OperatingIncomeLoss","value":"20441000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"NonoperatingIncomeExpense","value":"93000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest","value":"20534000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"IncomeTaxExpenseBenefit","value":"2197000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"NetIncomeLoss","value":"18337000000","unit":"usd","decimals":"-6","context_id":"c-11","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"46563000000","unit":"usd","decimals":"-6","context_id":"c-48","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{"srt:ProductOrServiceAxis":"us-gaap:AdvertisingMember","us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"583000000","unit":"usd","decimals":"-6","context_id":"c-52","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{"srt:ProductOrServiceAxis":"us-gaap:ServiceOtherMember","us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"47146000000","unit":"usd","decimals":"-6","context_id":"c-56","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{"us-gaap:StatementBusinessSegmentsAxis":"meta:FamilyOfAppsMember"}},
+    {"concept":"RevenueFromContractWithCustomerExcludingAssessedTax","value":"370000000","unit":"usd","decimals":"-6","context_id":"c-60","start_date":"2025-04-01","end_date":"2025-06-30","dimensions":{"us-gaap:StatementBusinessSegmentsAxis":"meta:RealityLabsMember"}}
+  ]
+}

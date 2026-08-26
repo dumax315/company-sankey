@@ -1,0 +1,64 @@
+{
+  "company": "Meta Platforms, Inc.",
+  "ticker": "META",
+  "cik": "0001326801",
+  "accession": "0001628280-26-050705",
+  "document": "meta-20260630_htm.xml",
+  "filing_date": "2026-07-30",
+  "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000162828026050705/meta-20260630_htm.xml",
+  "quarters": {
+    "2026Q2": {
+      "start_date": "2026-04-01",
+      "end_date": "2026-06-30",
+      "prior_start_date": "2025-04-01",
+      "prior_end_date": "2025-06-30"
+    }
+  },
+  "selectors": {
+    "advertising_revenue": {
+      "label": "Advertising",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {
+        "srt:ProductOrServiceAxis": "us-gaap:AdvertisingMember",
+        "us-gaap:StatementBusinessSegmentsAxis": "meta:FamilyOfAppsMember"
+      },
+      "status": "mapped"
+    },
+    "other_foa_revenue": {
+      "label": "Other FoA revenue",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {
+        "srt:ProductOrServiceAxis": "us-gaap:ServiceOtherMember",
+        "us-gaap:StatementBusinessSegmentsAxis": "meta:FamilyOfAppsMember"
+      },
+      "status": "mapped"
+    },
+    "family_of_apps_revenue": {
+      "label": "Family of Apps",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {
+        "us-gaap:StatementBusinessSegmentsAxis": "meta:FamilyOfAppsMember"
+      },
+      "status": "mapped"
+    },
+    "reality_labs_revenue": {
+      "label": "Reality Labs",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {
+        "us-gaap:StatementBusinessSegmentsAxis": "meta:RealityLabsMember"
+      },
+      "status": "mapped"
+    },
+    "revenue": {"label": "Revenue", "concept": "RevenueFromContractWithCustomerExcludingAssessedTax", "dimensions": {}, "status": "reported"},
+    "cost_of_revenue": {"label": "Cost of revenue", "concept": "CostOfRevenue", "dimensions": {}, "status": "reported"},
+    "research_and_development": {"label": "R&D", "concept": "ResearchAndDevelopmentExpense", "dimensions": {}, "status": "reported"},
+    "marketing_and_sales": {"label": "Marketing & sales", "concept": "SellingAndMarketingExpense", "dimensions": {}, "status": "reported"},
+    "general_and_administrative": {"label": "G&A", "concept": "GeneralAndAdministrativeExpense", "dimensions": {}, "status": "reported"},
+    "costs_and_expenses": {"label": "Costs & expenses", "concept": "CostsAndExpenses", "dimensions": {}, "status": "reported"},
+    "operating_income": {"label": "Operating income", "concept": "OperatingIncomeLoss", "dimensions": {}, "status": "reported"},
+    "nonoperating_income_expense": {"label": "Net non-operating", "concept": "NonoperatingIncomeExpense", "dimensions": {}, "status": "reported"},
+    "pretax_income": {"label": "Pre-tax income", "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest", "dimensions": {}, "status": "reported"},
+    "income_tax": {"label": "Income tax", "concept": "IncomeTaxExpenseBenefit", "dimensions": {}, "status": "reported"},
+    "net_income": {"label": "Net income", "concept": "NetIncomeLoss", "dimensions": {}, "status": "reported"}
+  }
+}
