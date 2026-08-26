@@ -140,10 +140,10 @@ def _layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         "research_and_development": Node("research_and_development", 710, 540, h("research_and_development"), PINK),
         "general_and_administrative": Node("general_and_administrative", 710, 650, h("general_and_administrative"), PINK),
         "marketing_and_sales": Node("marketing_and_sales", 710, 735, h("marketing_and_sales"), PINK),
-        "pretax_income": Node("pretax_income", 863, 340, h("pretax_income"), GREEN),
-        "nonoperating_income_expense": Node("nonoperating_income_expense", 863, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
-        "net_income": Node("net_income", 950, 340, h("net_income"), GREEN),
-        "income_tax": Node("income_tax", 938, 520, h("income_tax"), PINK),
+        "pretax_income": Node("pretax_income", 800, 340, h("pretax_income"), GREEN),
+        "nonoperating_income_expense": Node("nonoperating_income_expense", 800, 450, max(2, abs(h("nonoperating_income_expense"))), PINK),
+        "net_income": Node("net_income", 894, 340, h("net_income"), GREEN),
+        "income_tax": Node("income_tax", 874, 520, h("income_tax"), PINK),
     }
 
     def width(key: str) -> float:
@@ -196,10 +196,10 @@ LABEL_KEYS = (
 
 VERTICAL_TERMINALS = {
     "reality_labs_revenue": "below",
-    "cost_of_revenue": "below",
-    "nonoperating_income_expense": "below",
-    "net_income": "below",
-    "income_tax": "below",
+}
+
+ABOVE_LABEL_OFFSETS = {
+    "pretax_income": -90,
 }
 
 
@@ -213,7 +213,13 @@ def _label_position(key: str, node: Node, ribbons: Sequence[Ribbon]) -> Tuple[fl
         if VERTICAL_TERMINALS.get(key) == "below":
             return node.x + 11, node.y + node.height + 30, "middle", "output", "below"
         return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
-    return node.x + 11, node.y - 35, "middle", "internal", "above"
+    return (
+        node.x + 11,
+        node.y + ABOVE_LABEL_OFFSETS.get(key, -35),
+        "middle",
+        "internal",
+        "above",
+    )
 
 
 def _label_card_width(fact: FinancialFact) -> float:

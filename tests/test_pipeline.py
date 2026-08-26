@@ -50,7 +50,7 @@ def test_labels_follow_node_positions_and_center_when_vertical(quarter):
         x, y, anchor, _, placement = render_module._label_position(node.key, node, ribbons)
         if placement == "above":
             assert x == node.x + 11
-            assert y == node.y - 35
+            assert y == node.y + render_module.ABOVE_LABEL_OFFSETS.get(node.key, -35)
             assert anchor == "middle"
         elif placement == "below":
             assert x == node.x + 11
@@ -82,6 +82,13 @@ def test_net_income_is_rightmost_terminal_and_label_groups_fit_canvas(quarter):
     ]
     net_income = next(node for node in terminals if node.key == "net_income")
     assert net_income.x == max(node.x for node in terminals)
+
+    for node in terminals:
+        _, _, _, role, placement = render_module._label_position(
+            node.key, node, ribbons
+        )
+        assert role == "output"
+        assert placement == "right"
 
     for node in nodes:
         raw_position = render_module._label_position(node.key, node, ribbons)
@@ -127,8 +134,8 @@ def test_generate_writes_square_assets_and_auditable_manifest(tmp_path: Path):
     assert svg.count('data-role="output"') == 7
     assert 'data-key="advertising_revenue" data-role="input" data-placement="left"' in svg
     assert 'data-key="reality_labs_revenue" data-role="input" data-placement="below"' in svg
-    assert 'data-key="cost_of_revenue" data-role="output" data-placement="below"' in svg
-    assert 'data-key="net_income" data-role="output" data-placement="below"' in svg
+    assert 'data-key="cost_of_revenue" data-role="output" data-placement="right"' in svg
+    assert 'data-key="net_income" data-role="output" data-placement="right"' in svg
     assert 'viewBox="0 0 1080 1080"' in svg
     assert "See adjacent JSON manifest" not in svg
     png_header = png_path.read_bytes()[:24]
