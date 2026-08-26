@@ -237,7 +237,10 @@ dispatch branches to edit:
 
 1. `layout` — the function above (was `_layout_<company>` + a branch in `_layout`).
 2. `large_label_fonts` — 18/16pt cards is the default; set `False` for 16/14pt
-   (was a ticker tuple in `_label_font_sizes`).
+   (was a ticker tuple in `_label_font_sizes`). Both card text lines — the title
+   label and the secondary value/`Y/Y` line — render **bold** (`font-weight="700"`)
+   by default for every company; this is a global `render.py` default, not an
+   adapter setting.
 3. `label_keys` — the tuple listing every card key in draw order (was
    `TICKER_LABEL_KEYS`). `render_svg` already filters to keys that are **both**
    in `quarter.facts` **and** in the built nodes, so optional lines you did not
