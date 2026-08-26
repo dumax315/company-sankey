@@ -195,12 +195,13 @@ def _label_card(key: str, fact: FinancialFact) -> str:
     if anchor == "middle":
         left = x - width / 2
     elif anchor == "end":
-        left = x - width - 8
+        left = x - width + 8
     else:
         left = x - 8
+    left = max(16, min(left, WIDTH - width - 16))
     return (
-        f'<rect class="label-card" x="{left:.1f}" y="{y - 19:.1f}" '
-        f'width="{width:.1f}" height="47" rx="5" fill="{LABEL_CARD}" '
+        f'<rect class="label-card" x="{left:.1f}" y="{y - 20:.1f}" '
+        f'width="{width:.1f}" height="45" rx="5" fill="{LABEL_CARD}" '
         f'fill-opacity="{LABEL_CARD_OPACITY}"/>'
     )
 
