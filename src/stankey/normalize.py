@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from typing import Dict, Iterable, List, Optional, Sequence
 
 from .models import FinancialFact, Provenance, Quarter
@@ -59,6 +60,53 @@ def _select(facts: Iterable[dict], selector: dict, start: str, end: str) -> dict
     if len(values) != 1:
         raise FactSelectionError(f"Conflicting values for {selector['concept']}: {values}")
     return matches[0]
+
+
+def _longest_period_ending_near(
+    facts: Iterable[dict], selector: dict, target_end: str
+) -> tuple[str, str]:
+    """Find the longest selector period ending on (or within a week of) a date.
+
+    The small date tolerance handles a 53-week fiscal year without embedding a
+    calendar-company assumption in Q4 annual-minus-nine-month normalization.
+    """
+    concepts = selector.get("concepts", [selector["concept"]])
+    dimension_options = selector.get("dimension_options", [selector["dimensions"]])
+    candidates = [
+        fact
+        for fact in facts
+        if fact["concept"] in concepts
+        and fact.get("unit") == "usd"
+        and any(
+            _canonical_dimensions(fact.get("dimensions", {}))
+            == _canonical_dimensions(dimensions)
+            for dimensions in dimension_options
+        )
+    ]
+    if not candidates:
+        raise FactSelectionError(
+            f"No facts for {concepts} with dimensions {dimension_options}"
+        )
+    target = date.fromisoformat(target_end)
+    nearest_distance = min(
+        abs((date.fromisoformat(fact["end_date"]) - target).days)
+        for fact in candidates
+    )
+    if nearest_distance > 8:
+        raise FactSelectionError(
+            f"No fact for {concepts} ending near {target_end}"
+        )
+    nearest = [
+        fact
+        for fact in candidates
+        if abs((date.fromisoformat(fact["end_date"]) - target).days)
+        == nearest_distance
+    ]
+    selected_end = max(fact["end_date"] for fact in nearest)
+    selected_start = min(
+        fact["start_date"] for fact in nearest if fact["end_date"] == selected_end
+    )
+    return selected_start, selected_end
 
 
 def _millions(raw_value: str, multiplier: int = 1) -> int:
@@ -183,12 +231,26 @@ def normalize_meta_q4(
     allow_missing_prior: Sequence[str] = (),
 ) -> Quarter:
     """Derive standalone Q4 values as annual reported facts minus nine months."""
-    year = int(quarter_key[:4])
     quarter_config = config["quarters"][quarter_key]
-    current_annual_period = (f"{year}-01-01", f"{year}-12-31")
-    prior_annual_period = (f"{year - 1}-01-01", f"{year - 1}-12-31")
-    current_nine_period = (f"{year}-01-01", f"{year}-09-30")
-    prior_nine_period = (f"{year - 1}-01-01", f"{year - 1}-09-30")
+    revenue_selector = config["selectors"]["revenue"]
+    current_annual_period = _longest_period_ending_near(
+        annual_extracted["facts"], revenue_selector, quarter_config["end_date"]
+    )
+    prior_annual_period = _longest_period_ending_near(
+        annual_extracted["facts"], revenue_selector, quarter_config["prior_end_date"]
+    )
+    current_nine_target = (
+        date.fromisoformat(quarter_config["start_date"]) - timedelta(days=1)
+    ).isoformat()
+    prior_nine_target = (
+        date.fromisoformat(quarter_config["prior_start_date"]) - timedelta(days=1)
+    ).isoformat()
+    current_nine_period = _longest_period_ending_near(
+        nine_month_current_extracted["facts"], revenue_selector, current_nine_target
+    )
+    prior_nine_period = _longest_period_ending_near(
+        nine_month_prior_extracted["facts"], revenue_selector, prior_nine_target
+    )
     optional_selectors = set(config.get("optional_selectors", ()))
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
@@ -196,48 +258,78 @@ def normalize_meta_q4(
             annual_current = _select(
                 annual_extracted["facts"], selector, *current_annual_period
             )
+        except FactSelectionError:
+            if key in optional_selectors:
+                continue
+            raise
+        try:
             nine_current = _select(
                 nine_month_current_extracted["facts"], selector, *current_nine_period
             )
         except FactSelectionError:
             # Optional disclosures may be absent from the annual or nine-month
             # instance (Alphabet does not tag segment revenue cumulatively);
-            # skip deriving a standalone Q4 value for them.
-            if key in optional_selectors:
+            # skip deriving a standalone Q4 value for them. A company can mark
+            # an annual-only expense as zero when its nine-month filing omits
+            # the line entirely (Micron restructuring is the known case).
+            if selector.get("q4_missing_nine_as_zero"):
+                nine_current = None
+            elif key in optional_selectors:
                 continue
-            raise
+            else:
+                raise
         try:
             annual_prior = _select(
                 annual_extracted["facts"], selector, *prior_annual_period
-            )
-            nine_prior = _select(
-                nine_month_prior_extracted["facts"], selector, *prior_nine_period
             )
         except FactSelectionError:
             if key not in allow_missing_prior:
                 raise
             annual_prior = None
-            nine_prior = None
+        try:
+            nine_prior = _select(
+                nine_month_prior_extracted["facts"], selector, *prior_nine_period
+            )
+        except FactSelectionError:
+            if selector.get("q4_missing_nine_as_zero") and annual_prior is not None:
+                nine_prior = None
+            elif key in allow_missing_prior:
+                nine_prior = None
+            else:
+                raise
         prior_value = None
-        if annual_prior is not None and nine_prior is not None:
-            prior_value = (
-                _millions(annual_prior["value"], selector.get("multiplier", 1))
-                - _millions(nine_prior["value"], selector.get("multiplier", 1))
+        if annual_prior is not None:
+            prior_value = _millions(
+                annual_prior["value"], selector.get("multiplier", 1)
+            )
+            if nine_prior is not None:
+                prior_value -= _millions(
+                    nine_prior["value"], selector.get("multiplier", 1)
+                )
+        current_value = _millions(
+            annual_current["value"], selector.get("multiplier", 1)
+        )
+        if nine_current is not None:
+            current_value -= _millions(
+                nine_current["value"], selector.get("multiplier", 1)
+            )
+        provenance = [_provenance(annual_current, annual_extracted["source"])]
+        if nine_current is not None:
+            provenance.append(
+                _provenance(nine_current, nine_month_current_extracted["source"])
             )
         facts[key] = FinancialFact(
             key=key,
             label=selector["label"],
-            value_millions=(
-                _millions(annual_current["value"], selector.get("multiplier", 1))
-                - _millions(nine_current["value"], selector.get("multiplier", 1))
-            ),
+            value_millions=current_value,
             prior_value_millions=prior_value,
             status="derived",
-            provenance=[
-                _provenance(annual_current, annual_extracted["source"]),
-                _provenance(nine_current, nine_month_current_extracted["source"]),
-            ],
-            derivation="annual reported value - nine-month reported value",
+            provenance=provenance,
+            derivation=(
+                "annual reported value - omitted nine-month value treated as zero"
+                if nine_current is None
+                else "annual reported value - nine-month reported value"
+            ),
         )
 
     # Only derive gross profit for companies that report a cost-of-revenue line
@@ -260,7 +352,7 @@ def normalize_meta_q4(
     return Quarter(
         company=config["company"],
         ticker=config["ticker"],
-        fiscal_year=year,
+        fiscal_year=int(quarter_key[:4]),
         fiscal_quarter=4,
         start_date=quarter_config["start_date"],
         end_date=quarter_config["end_date"],

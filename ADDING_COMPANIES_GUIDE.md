@@ -13,6 +13,9 @@ gross-profit bridge; net interest income + noninterest revenue → total net
 revenue → provision + noninterest expense + pre-tax). Pick whichever existing
 adapter is closest to your target and copy it.
 
+Micron (`MU`) is the reference for a **non-calendar 52/53-week fiscal year**, an
+annual-only expense line in Q4 derivation, and sign-aware gross/operating losses.
+
 ## Mental model
 
 The pipeline is config-driven end to end:
@@ -109,6 +112,15 @@ Copy `configs/companies/amazon.json` (or `meta.json`) and edit. Required top-lev
 keys: `company`, `ticker`, `slug`, `cik` (10 digits, zero-padded), `quarters`
 (leave `{}` — discovery fills it), and `selectors`.
 
+For a non-calendar filer, also set `fiscal_year_end_month` (1–12). Set
+`fiscal_week_based` to `true` for a 52/53-week filer whose quarter-end dates can
+move by several days or cross into an adjacent month. Micron uses:
+
+```json
+"fiscal_year_end_month": 8,
+"fiscal_week_based": true
+```
+
 Each selector maps a **fact key** to how it is found:
 
 ```json
@@ -135,6 +147,11 @@ Selector fields:
   Use when a **member name changes across periods** (see Pitfall B).
 - `multiplier` (optional int, e.g. `-1`) — flip sign for concepts reported with
   the opposite polarity (Amazon's `other_operating_expense`).
+- `q4_missing_nine_as_zero` (optional bool) — only for an annual expense that
+  is omitted from the nine-month filing because its cumulative value is zero.
+  Q4 then retains the annual value instead of skipping the selector. Confirm
+  the omission in the actual filings first (Micron restructuring is the
+  reference).
 - `optional_selectors` (optional top-level array of keys) — see Pitfall C.
 
 Notes:
@@ -338,6 +355,11 @@ Finally, render 20 quarters (`--quarters 20`) to shake out historical concept an
 member drift, and eyeball a few PNGs — including the **oldest** quarter, which is
 most likely to use legacy concepts.
 
+If the oldest requested output is Q4, `generate-series --fetch-sec`
+automatically discovers the preceding Q3 filing as a non-output dependency for
+annual-minus-nine-month derivation. A standalone discovery manifest requested
+with `--quarters 20` still contains exactly the 20 requested output quarters.
+
 Update `README.md` with a usage block for the new company.
 
 ## Pitfalls learned the hard way
@@ -416,3 +438,22 @@ release** (negative provision for credit losses, common in 2021) reconciles fine
 because the identity holds with a negative term, and the flow renders from its
 magnitude with the sign shown in the label. Do not assume every component is
 positive even when the bottom line is.
+
+**K. Fiscal quarters are not always calendar quarters.**
+For non-calendar companies, set `fiscal_year_end_month`; for 52/53-week filers,
+also set `fiscal_week_based: true`. Discovery maps nominal fiscal-quarter months
+relative to the year-end month, tolerates a one-month boundary drift (for
+example, Micron Q3 ending in early June), and emits exact 13-week current and
+prior dates. Q4 normalization finds the filed annual and nine-month periods
+near those dates instead of assuming Jan–Dec / Jan–Sep contexts, including a
+one-week tolerance for 53-week years. Verify discovered dates against actual
+XBRL contexts before generating the full series.
+
+**L. An omitted nine-month line can mean zero, but only when verified.**
+An optional selector normally disappears from Q4 if either its annual or
+nine-month fact is absent. Sometimes the 10-K reports a small annual expense
+while the nine-month filing omitted the line because the cumulative amount was
+zero. Mark that selector `q4_missing_nine_as_zero: true`; normalization derives
+Q4 from the annual value minus zero and retains only the annual fact in
+provenance. Never apply this flag merely to make a reconciliation pass—confirm
+the accounting meaning from the filing first.

@@ -140,6 +140,68 @@ def test_discovery_reports_missing_requested_quarters(meta_config):
         )
 
 
+def test_discovery_supports_week_based_august_fiscal_year():
+    config = {
+        "company": "Micron Technology, Inc.",
+        "ticker": "MU",
+        "slug": "micron",
+        "cik": "0000723125",
+        "fiscal_year_end_month": 8,
+        "fiscal_week_based": True,
+    }
+    rows = [
+        {
+            "accessionNumber": "0000723125-26-000015",
+            "filingDate": "2026-06-25",
+            "form": "10-Q",
+            "primaryDocument": "mu-20260528.htm",
+            "reportDate": "2026-05-28",
+        },
+        {
+            "accessionNumber": "0000723125-26-000006",
+            "filingDate": "2026-03-19",
+            "form": "10-Q",
+            "primaryDocument": "mu-20260226.htm",
+            "reportDate": "2026-02-26",
+        },
+    ]
+    submissions_url = "https://data.sec.gov/submissions/CIK0000723125.json"
+    responses = {
+        submissions_url: {
+            "filings": {"recent": _submission_block(rows), "files": []}
+        }
+    }
+    for row in rows:
+        accession_path = row["accessionNumber"].replace("-", "")
+        responses[
+            f"https://www.sec.gov/Archives/edgar/data/723125/{accession_path}/index.json"
+        ] = {
+            "directory": {
+                "item": [{"name": f"{Path(row['primaryDocument']).stem}_htm.xml"}]
+            }
+        }
+
+    result = discover_filings(
+        config,
+        quarters=2,
+        from_quarter="2026Q3",
+        user_agent="Test Person test@example.com",
+        fetch_json=lambda url, user_agent: responses[url],
+    )
+
+    assert list(result["quarters"]) == ["2026Q3", "2026Q2"]
+    assert result["quarters"]["2026Q3"]["start_date"] == "2026-02-27"
+    assert result["quarters"]["2026Q3"]["prior_start_date"] == "2025-02-28"
+    assert result["quarters"]["2026Q2"]["end_date"] == "2026-02-26"
+
+
+def test_week_based_fiscal_quarter_allows_one_month_end_date_drift():
+    from stankey.discovery import _quarter_key
+
+    assert _quarter_key("2023-06-01", fiscal_year_end_month=8) == "2023Q3"
+    assert _quarter_key("2021-09-02", fiscal_year_end_month=8) == "2021Q4"
+
+
 def test_xbrl_document_falls_back_only_when_unambiguous():
     assert _select_xbrl_document(
         {"directory": {"item": [{"name": "renamed-instance_htm.xml"}]}},

@@ -1,6 +1,6 @@
 """Discover configuration-ready quarterly filing metadata from EDGAR."""
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Optional
 
@@ -35,18 +35,39 @@ def quarter_sequence(start: str, count: int) -> list:
     return result
 
 
-def _quarter_key(report_date: str) -> str:
+def _quarter_key(report_date: str, fiscal_year_end_month: int = 12) -> str:
     try:
         period_end = date.fromisoformat(report_date)
     except ValueError as exc:
         raise ValueError(f"Invalid SEC report date: {report_date}") from exc
-    quarter_by_month = {3: 1, 6: 2, 9: 3, 12: 4}
-    quarter = quarter_by_month.get(period_end.month)
-    if quarter is None:
-        raise ValueError(
-            f"Unsupported fiscal period end {report_date}; discovery currently expects calendar quarters"
+    if fiscal_year_end_month not in range(1, 13):
+        raise ValueError("fiscal_year_end_month must be between 1 and 12")
+    expected_months = {
+        quarter: (fiscal_year_end_month + quarter * 3 - 1) % 12 + 1
+        for quarter in range(1, 5)
+    }
+    distances = {
+        quarter: min(
+            (period_end.month - expected_month) % 12,
+            (expected_month - period_end.month) % 12,
         )
-    return f"{period_end.year}Q{quarter}"
+        for quarter, expected_month in expected_months.items()
+    }
+    nearest_distance = min(distances.values())
+    nearest_quarters = [
+        quarter for quarter, distance in distances.items() if distance == nearest_distance
+    ]
+    if nearest_distance > 1 or len(nearest_quarters) != 1:
+        raise ValueError(
+            f"Unsupported fiscal period end {report_date} for fiscal year ending "
+            f"in month {fiscal_year_end_month}"
+        )
+    quarter = nearest_quarters[0]
+    expected_month = expected_months[quarter]
+    fiscal_year = period_end.year + (
+        1 if expected_month > fiscal_year_end_month else 0
+    )
+    return f"{fiscal_year}Q{quarter}"
 
 
 def _submission_rows(block: dict) -> Iterable[dict]:
@@ -67,12 +88,14 @@ def _submission_rows(block: dict) -> Iterable[dict]:
         yield {key: block[key][index] for key in required}
 
 
-def _quarterly_filings(rows: Iterable[dict]) -> Dict[str, dict]:
+def _quarterly_filings(
+    rows: Iterable[dict], fiscal_year_end_month: int = 12
+) -> Dict[str, dict]:
     filings: Dict[str, dict] = {}
     for row in rows:
         if row["form"] not in SUPPORTED_FORMS or not row["reportDate"]:
             continue
-        quarter = _quarter_key(row["reportDate"])
+        quarter = _quarter_key(row["reportDate"], fiscal_year_end_month)
         expected_form = "10-K" if quarter.endswith("Q4") else "10-Q"
         if row["form"] != expected_form:
             continue
@@ -105,16 +128,25 @@ def _select_xbrl_document(index_payload: dict, primary_document: str) -> str:
     )
 
 
-def _period_dates(quarter: str, report_date: str) -> dict:
-    year = int(quarter[:4])
-    quarter_number = int(quarter[5])
-    start_month = (quarter_number - 1) * 3 + 1
+def _period_dates(quarter: str, report_date: str, fiscal_week_based: bool = False) -> dict:
     period_end = date.fromisoformat(report_date)
+    if fiscal_week_based:
+        # A standalone 13-week quarter contains 91 inclusive days. Comparable
+        # periods for a 52/53-week filer normally end exactly 52 weeks earlier.
+        period_start = period_end - timedelta(days=90)
+        prior_start = period_start - timedelta(days=364)
+        prior_end = period_end - timedelta(days=364)
+    else:
+        start_month = (period_end.month - 3) % 12 + 1
+        start_year = period_end.year - (1 if start_month > period_end.month else 0)
+        period_start = date(start_year, start_month, 1)
+        prior_start = date(start_year - 1, start_month, 1)
+        prior_end = date(period_end.year - 1, period_end.month, period_end.day)
     return {
-        "start_date": date(year, start_month, 1).isoformat(),
+        "start_date": period_start.isoformat(),
         "end_date": report_date,
-        "prior_start_date": date(year - 1, start_month, 1).isoformat(),
-        "prior_end_date": date(year - 1, period_end.month, period_end.day).isoformat(),
+        "prior_start_date": prior_start.isoformat(),
+        "prior_end_date": prior_end.isoformat(),
     }
 
 
@@ -140,7 +172,11 @@ def discover_filings(
     except (KeyError, TypeError) as exc:
         raise ValueError("SEC submissions response does not contain filing metadata") from exc
 
-    available = _quarterly_filings(_submission_rows(recent))
+    fiscal_year_end_month = int(config.get("fiscal_year_end_month", 12))
+    fiscal_week_based = bool(config.get("fiscal_week_based", False))
+    available = _quarterly_filings(
+        _submission_rows(recent), fiscal_year_end_month
+    )
     requested = quarter_sequence(from_quarter, quarters) if from_quarter else None
 
     def enough_filings() -> bool:
@@ -155,7 +191,9 @@ def discover_filings(
         if not name:
             continue
         payload = fetch(f"{SUBMISSIONS_BASE_URL}/{name}", user_agent)
-        available.update(_quarterly_filings(_submission_rows(payload)))
+        available.update(
+            _quarterly_filings(_submission_rows(payload), fiscal_year_end_month)
+        )
 
     if requested is None:
         requested = sorted(
@@ -178,7 +216,7 @@ def discover_filings(
         index_payload = fetch(f"{filing_base_url}/index.json", user_agent)
         document = _select_xbrl_document(index_payload, filing["primaryDocument"])
         discovered[quarter] = {
-            **_period_dates(quarter, filing["reportDate"]),
+            **_period_dates(quarter, filing["reportDate"], fiscal_week_based),
             "fixture": f"data/fixtures/{slug}_{quarter[:4]}_q{quarter[5]}_sec_xbrl.json",
             "source": {
                 "form": filing["form"],

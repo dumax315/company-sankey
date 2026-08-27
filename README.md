@@ -1,7 +1,7 @@
 # Company Stankey
 
 This project generates auditable quarterly income-statement Sankeys for Meta,
-Amazon, Alphabet, JPMorgan Chase, and ExxonMobil. It
+Amazon, Alphabet, JPMorgan Chase, ExxonMobil, and Micron. It
 emits a canonical SVG with a 1080×1080 viewBox, a matching 3240×3240 PNG master,
 and a JSON manifest containing each value's SEC XBRL provenance and all
 reconciliation results.
@@ -96,6 +96,27 @@ still reconcile without them. Derived Q4 quarters reconstruct the components (an
 every other line) as the annual 10-K value minus the nine-month 10-Q value, so
 their cards carry the derived (`*`) marker.
 
+Micron uses the same workflow, with fiscal-quarter labels based on its
+52/53-week fiscal year ending in August:
+
+```bash
+uv run stankey discover-filings MU --quarters 20 --from-quarter 2026Q3 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/micron/MU_discovered_filings.json
+uv run stankey generate-series MU --quarters 20 --from-quarter 2026Q3 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+Micron assets are written under `outputs/micron/`, including 20 flat PNG
+masters in `outputs/micron/png/`. The adapter reconciles DRAM, NAND, and other
+product sales to consolidated revenue; cost of goods sold and operating
+expenses to operating income; investment income, interest expense, and other
+non-operating activity to pre-tax income; and the tax and equity-method bridge
+to net income. Its flows support gross losses, operating losses, tax benefits,
+and signed income/expense lines. Q4 derivation also handles restructuring that
+is reported in the annual filing while an omitted nine-month line represents
+zero.
+
 `discover-filings` reads the company's SEC submissions history, follows historical
 submission pages when the recent feed is not deep enough, resolves each filing's
 extracted XBRL instance, and emits configuration-ready entries under `quarters`.
@@ -162,15 +183,15 @@ are cached under `data/raw/meta/0001628280-26-050705/` and are not committed.
 
 ## MVP limitations
 
-- The checked-in offline fixture covers only `META 2026Q2`; Amazon, Alphabet, and historical
-  series generation requires live SEC access with `--fetch-sec`.
+- The checked-in offline fixture covers only `META 2026Q2`; regenerating other
+  companies and historical series requires live SEC access with `--fetch-sec`.
 - Values are GAAP and normalized to USD millions. Form 10-Q figures are
   unaudited, and Q4 values are derived as annual minus nine months.
 - Gross profit is derived because Meta does not report it as a separate fact.
 - Segment/product revenue comes from company-specific XBRL dimensions. Mapping
   it is deterministic but company-specific.
 - The layout uses reviewed company-specific flow columns with deterministic
-  label lanes. Amazon profit/loss and income/expense sign changes are supported;
-  negative consolidated operating-profit quarters are not yet supported.
+  label lanes. Sign handling varies by adapter; Micron supports gross,
+  operating, pre-tax, and net losses as well as tax benefits.
 - The PNG is derived directly from the SVG; text rasterization can still vary
   by platform font availability.

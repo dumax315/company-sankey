@@ -258,20 +258,31 @@ def generate_series(args: argparse.Namespace) -> Path:
     args.output_dir = _output_dir(config, args.output_dir)
     start = args.from_quarter.upper() if args.from_quarter else _latest_configured_quarter(config)
     quarters = quarter_sequence(start, args.quarters)
-    missing = [quarter for quarter in quarters if quarter not in config["quarters"]]
+    q4_dependencies = [
+        f"{quarter[:4]}Q3" for quarter in quarters if quarter.endswith("Q4")
+    ]
+    required_quarters = list(dict.fromkeys([*quarters, *q4_dependencies]))
+    missing = [
+        quarter for quarter in required_quarters if quarter not in config["quarters"]
+    ]
     discovery_warnings = []
     if missing and args.fetch_sec:
         if not args.user_agent:
             raise ValueError("--fetch-sec requires --user-agent or SEC_USER_AGENT")
         discovery = discover_filings(
             config,
-            quarters=args.quarters,
+            quarters=args.quarters
+            + (1 if quarters[-1].endswith("Q4") else 0),
             from_quarter=start,
             user_agent=args.user_agent,
         )
         config["quarters"].update(discovery["quarters"])
         discovery_warnings = discovery["warnings"]
-        missing = [quarter for quarter in quarters if quarter not in config["quarters"]]
+        missing = [
+            quarter
+            for quarter in required_quarters
+            if quarter not in config["quarters"]
+        ]
     if missing:
         raise ValueError(
             "Missing configured source data for requested quarter(s): " + ", ".join(missing)

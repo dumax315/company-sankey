@@ -420,3 +420,52 @@ def test_generate_series_discovers_missing_fetch_sec_quarters(tmp_path: Path, mo
     generate_series(args)
 
     assert generated == ["2026Q2", "2026Q1"]
+
+
+def test_generate_series_discovers_q3_dependency_when_oldest_output_is_q4(
+    tmp_path: Path, monkeypatch
+):
+    config_path = tmp_path / "meta.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "company": "Meta Platforms, Inc.",
+                "ticker": "META",
+                "cik": "0001326801",
+                "quarters": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    discovered_calls = []
+
+    def fake_discover(config, quarters, user_agent, from_quarter=None):
+        discovered_calls.append((quarters, from_quarter))
+        return {
+            "quarters": {"2025Q4": {}, "2025Q3": {}},
+            "warnings": [],
+        }
+
+    def fake_generate(args):
+        assert "2025Q3" in args.config_data["quarters"]
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        manifest = args.output_dir / f"{args.quarter}.json"
+        manifest.with_suffix(".png").write_bytes(b"png")
+        return manifest
+
+    monkeypatch.setattr(cli_module, "discover_filings", fake_discover)
+    monkeypatch.setattr(cli_module, "generate", fake_generate)
+    args = argparse.Namespace(
+        ticker="META",
+        quarters=1,
+        from_quarter="2025Q4",
+        output_dir=tmp_path / "outputs",
+        fetch_sec=True,
+        user_agent="Test Person test@example.com",
+        config=config_path,
+        png_size=1080,
+    )
+
+    generate_series(args)
+
+    assert discovered_calls == [(2, "2025Q4")]
