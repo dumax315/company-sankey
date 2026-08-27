@@ -141,6 +141,30 @@ and signed income/expense lines. Q4 derivation also handles restructuring that
 is reported in the annual filing while an omitted nine-month line represents
 zero.
 
+Palantir uses the same workflow and resolves its company config automatically:
+
+```bash
+uv run stankey discover-filings PLTR --quarters 20 --from-quarter 2026Q2 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/palantir/PLTR_discovered_filings.json
+uv run stankey generate-series PLTR --quarters 20 --from-quarter 2026Q2 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+Palantir assets are written under `outputs/palantir/`, including 20 flat PNG
+masters in `outputs/palantir/png/`. The adapter reconciles government and
+commercial segment sales to consolidated revenue; cost of revenue to gross
+profit; sales & marketing, R&D, and G&A to operating expenses and operating
+income; interest income, interest expense, and other non-operating activity to
+pre-tax income; and the income-tax and noncontrolling-interest bridge to net
+income. Gross profit is derived. Its flows are sign-aware, so the early loss
+quarters (operating, pre-tax, and net losses, with and without a
+noncontrolling interest) and any tax-benefit quarters render honestly. The
+selectors also absorb Palantir's segment concept and dimension-member drift
+across filings, and interest expense and the noncontrolling interest are
+optional lines drawn only when tagged. Values preserve Palantir's filed
+sub-million (`$000`) precision.
+
 `discover-filings` reads the company's SEC submissions history, follows historical
 submission pages when the recent feed is not deep enough, resolves each filing's
 extracted XBRL instance, and emits configuration-ready entries under `quarters`.
