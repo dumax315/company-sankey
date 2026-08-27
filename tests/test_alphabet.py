@@ -187,6 +187,42 @@ def test_alphabet_loss_and_tax_benefit_quarter_reconciles_and_renders(tmp_path: 
     assert "−$3.8B" in svg  # net loss
 
 
+def test_alphabet_large_nonoperating_income_quarter_renders_without_collision(tmp_path: Path):
+    # Regression: Alphabet 2026 Q2 reported ~$98B of non-operating income
+    # (large equity-security gains), rivaling cost of revenue. The identities
+    # reconcile, but the non-operating label card previously extended left into
+    # the cost-of-revenue column and tripped the spacing guard. The label must
+    # now sit to the right of its node so the SVG renders cleanly.
+    values = {
+        "google_services_revenue": 82_543,
+        "google_cloud_revenue": 13_624,
+        "other_bets_revenue": 373,
+        "hedging_revenue": -112,
+        "revenue": 96_428,
+        "cost_of_revenue": 45_900,
+        "gross_profit": 96_428 - 45_900,
+        "research_and_development": 13_808,
+        "sales_and_marketing": 7_101,
+        "general_and_administrative": 5_209,
+        "costs_and_expenses": 72_018,
+        "operating_income": 24_410,
+        "nonoperating_income_expense": 97_983,
+        "pretax_income": 122_393,
+        "income_tax": 12_000,
+        "net_income": 110_393,
+    }
+    quarter = _alphabet_quarter(values, quarter=2, year=2026)
+    checks = validate_quarter(quarter)
+    assert all(check.passed for check in checks)
+    destination = tmp_path / "alphabet-big-nonop.svg"
+    # render_svg raises on any label-card collision; reaching the assertions
+    # proves the oversized non-operating card no longer overlaps the cost card.
+    render_module.render_svg(quarter, destination)
+    svg = destination.read_text(encoding="utf-8")
+    assert svg.count('class="label-card"') == 14
+    _assert_cards_on_canvas(svg)
+
+
 def test_alphabet_selector_matches_alternate_revenue_concept():
     # Older filings tag consolidated revenue as
     # RevenueFromContractWithCustomerExcludingAssessedTax; newer ones as Revenues.

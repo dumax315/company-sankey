@@ -210,7 +210,11 @@ def _label_position(
     round_left, round_right = _node_rounding(node, ribbons)
     if key == "pretax_income":
         return node.x + 11, node.y + ABOVE_LABEL_OFFSETS.get(key, ABOVE_LABEL_DEFAULT_OFFSET), "middle", "internal", "above"
-    if key == "nonoperating_income_expense" and not round_left and not round_right:
+    if key == "nonoperating_income_expense":
+        # This node sits in a middle column, so a left-anchored card can extend
+        # into the cost-of-revenue column when the value is large (e.g. an
+        # outlier quarter with ~$98B of non-operating income). Always place its
+        # label to the right of the node to keep it clear of that column.
         return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"
     if round_left and round_right:
         return node.right + 12, node.y + node.height / 2 - 2.5, "start", "output", "right"

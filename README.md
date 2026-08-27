@@ -41,10 +41,10 @@ Profit and loss quarters are rendered with sign-aware flows.
 Alphabet uses the same workflow and resolves its company config automatically:
 
 ```bash
-uv run stankey discover-filings GOOGL --quarters 20 --from-quarter 2025Q4 \
+uv run stankey discover-filings GOOGL --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/alphabet/GOOGL_discovered_filings.json
-uv run stankey generate-series GOOGL --quarters 4 --from-quarter 2025Q4 \
+uv run stankey generate-series GOOGL --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -101,7 +101,7 @@ outputs/meta/
   META_2026Q2_20_quarters.json
 ```
 
-Use `--from-quarter 2025Q4` to reproduce a range from a specific point. The
+Use `--from-quarter 2026Q2` to reproduce a range from a specific point. The
 command validates that every requested quarter has source metadata before
 starting generation.
 

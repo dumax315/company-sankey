@@ -300,7 +300,7 @@ inspectable.
 
 ```bash
 uv run pytest
-uv run stankey generate-series TICKER --quarters 4 --from-quarter 2025Q4 \
+uv run stankey generate-series TICKER --quarters 4 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'You you@example.com'
 ```
 
