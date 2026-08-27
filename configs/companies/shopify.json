@@ -1,0 +1,100 @@
+{
+  "company": "Shopify Inc.",
+  "ticker": "SHOP",
+  "slug": "shopify",
+  "cik": "0001594805",
+  "quarters": {},
+  "selectors": {
+    "subscription_solutions_revenue": {
+      "label": "Subscription solutions",
+      "concept": "Revenues",
+      "concepts": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+      "dimensions": {"srt:ProductOrServiceAxis": "us-gaap:SubscriptionAndCirculationMember"},
+      "status": "mapped"
+    },
+    "merchant_solutions_revenue": {
+      "label": "Merchant solutions",
+      "concept": "Revenues",
+      "concepts": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+      "dimensions": {"srt:ProductOrServiceAxis": "us-gaap:ServiceMember"},
+      "status": "mapped"
+    },
+    "revenue": {
+      "label": "Revenue",
+      "concept": "Revenues",
+      "concepts": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"],
+      "dimensions": {},
+      "status": "reported"
+    },
+    "cost_of_revenue": {
+      "label": "Cost of revenues",
+      "concept": "CostOfGoodsAndServicesSold",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "sales_and_marketing": {
+      "label": "Sales & marketing",
+      "concept": "SellingAndMarketingExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "research_and_development": {
+      "label": "R&D",
+      "concept": "ResearchAndDevelopmentExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "general_and_administrative": {
+      "label": "G&A",
+      "concept": "GeneralAndAdministrativeExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "transaction_and_loan_losses": {
+      "label": "Transaction & loan losses",
+      "concept": "TransactionAndLoanLosses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "operating_expenses": {
+      "label": "Operating expenses",
+      "concept": "OperatingExpenses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "operating_income": {
+      "label": "Operating income",
+      "concept": "OperatingIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "nonoperating_income_expense": {
+      "label": "Net other income",
+      "concept": "NonoperatingIncomeExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "pretax_income": {
+      "label": "Pre-tax income",
+      "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "concepts": [
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        "IncomeLossAttributableToParent"
+      ],
+      "dimensions": {},
+      "status": "reported"
+    },
+    "income_tax": {
+      "label": "Income tax",
+      "concept": "IncomeTaxExpenseBenefit",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "net_income": {
+      "label": "Net income",
+      "concept": "NetIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # Company Stankey
 
 This project generates auditable quarterly income-statement Sankeys for Meta,
-Amazon, Alphabet, JPMorgan Chase, ExxonMobil, and Micron. It
+Amazon, Alphabet, Shopify, JPMorgan Chase, ExxonMobil, and Micron. It
 emits a canonical SVG with a 1080×1080 viewBox, a matching 3240×3240 PNG master,
 and a JSON manifest containing each value's SEC XBRL provenance and all
 reconciliation results.
@@ -66,6 +66,30 @@ revenue concept also varies by period (older filings use
 `RevenueFromContractWithCustomerExcludingAssessedTax`, newer ones use
 `Revenues`), as does the pre-tax income concept, and each variant is matched
 automatically.
+
+Shopify uses the same workflow for the six continuous standard-XBRL quarters
+available since it began filing Forms 10-Q and 10-K in 2025:
+
+```bash
+uv run stankey discover-filings SHOP --quarters 6 --from-quarter 2026Q2 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/shopify/SHOP_discovered_filings.json
+uv run stankey generate-series SHOP --quarters 6 --from-quarter 2026Q2 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+Shopify assets are written under `outputs/shopify/`. The adapter reconciles
+subscription-solutions and merchant-solutions revenue to total revenue; cost of
+revenues to gross profit; sales and marketing, R&D, G&A, and transaction and
+loan losses to operating expenses and operating income; and net other income or
+expense and income tax to net income. Profit, loss, and tax-benefit quarters
+render with sign-aware flows. The selectors also handle Shopify's revenue and
+pre-tax concept changes across annual and quarterly filings.
+
+Shopify's pre-2025 quarterly results were furnished on non-XBRL Forms 6-K, so
+the SEC-XBRL pipeline cannot generate a continuous series before 2025Q1. Its
+older annual Forms 40-F are XBRL-tagged, but they do not provide the standalone
+quarterly facts needed by this project.
 
 ExxonMobil uses the same workflow and resolves its company config automatically:
 
@@ -206,6 +230,8 @@ are cached under `data/raw/meta/0001628280-26-050705/` and are not committed.
 
 - The checked-in offline fixture covers only `META 2026Q2`; regenerating other
   companies and historical series requires live SEC access with `--fetch-sec`.
+- SHOP's continuous SEC-XBRL quarterly history begins at 2025Q1; older quarterly
+  results were furnished on non-XBRL Forms 6-K.
 - Values are GAAP and normalized to USD millions. Form 10-Q figures are
   unaudited, and Q4 values are derived as annual minus nine months.
 - Gross profit is derived because Meta does not report it as a separate fact.
