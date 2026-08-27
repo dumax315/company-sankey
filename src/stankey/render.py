@@ -117,10 +117,17 @@ def _packed_flows(
 
 
 def _format_fact(fact: FinancialFact) -> str:
+    unit = fact.provenance[0].unit.lower() if fact.provenance else "usd"
+    symbol = {"usd": "$", "eur": "€"}.get(unit, unit.upper() + " ")
     if abs(fact.value_millions) < 1000:
-        value = f"${abs(fact.value_millions):,}M"
+        magnitude = abs(fact.value_millions)
+        if isinstance(magnitude, float) and not magnitude.is_integer():
+            formatted = f"{magnitude:,.1f}"
+        else:
+            formatted = f"{int(magnitude):,}"
+        value = f"{symbol}{formatted}M"
     else:
-        value = f"${abs(fact.value_millions) / 1000:.1f}B"
+        value = f"{symbol}{abs(fact.value_millions) / 1000:.1f}B"
     if fact.value_millions < 0:
         value = "−" + value
     yoy = fact.yoy_percent
@@ -428,12 +435,12 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="title desc">',
         f'<title id="title">{escape(quarter.ticker)} {quarter_label} income statement Sankey</title>',
-        f'<desc id="desc">Revenue and expense flows in USD billions based on {escape(quarter.company)} SEC filing data.</desc>',
+        f'<desc id="desc">Revenue and expense flows in {escape(quarter.currency)} billions based on {escape(quarter.company)} SEC filing data.</desc>',
         f'<rect width="1080" height="1080" rx="28" fill="{BACKGROUND}"/>',
         f'<text x="42" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="58" fill="{INK}">{escape(quarter.ticker)}</text>',
         f'<text x="42" y="128" font-family="Arial,sans-serif" font-weight="700" font-size="28" fill="{GREEN}">{quarter_label}</text>',
         f'<text x="204" y="128" font-family="Arial,sans-serif" font-size="28" fill="{INK}">Income statement</text>',
-        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended {_display_date(quarter.end_date)} • USD billions • GAAP • unaudited</text>',
+        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended {_display_date(quarter.end_date)} • {escape(quarter.currency)} billions • GAAP • unaudited</text>',
     ]
     for ribbon in ribbons:
         lines.append(f'<path class="ribbon" d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
@@ -483,8 +490,8 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
         [
             f'<line x1="42" y1="950" x2="1038" y2="950" stroke="#d7dbe0"/>',
             f'<text x="42" y="980" font-family="Arial,sans-serif" font-size="14" fill="{INK}">Source: {escape(quarter.company)} SEC filing dated {_display_date(source.filing_date)} • accession {escape(source.accession)}</text>',
-            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. * values are derived. Segment labels use {escape(quarter.ticker)}-specific XBRL dimensions.</text>',
-            f'<text x="42" y="1028" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Values mapped from filing XBRL; flows may omit disclosures outside this income-statement bridge.</text>',
+            f'<text x="42" y="1004" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Rounded for display. * values are derived. Segment labels use {escape(quarter.ticker)}-specific filing mappings.</text>',
+            f'<text x="42" y="1028" font-family="Arial,sans-serif" font-size="13" fill="{MUTED}">Values mapped from filed data; flows may omit disclosures outside this income-statement bridge.</text>',
             "</svg>",
         ]
     )
