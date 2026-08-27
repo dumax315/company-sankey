@@ -95,6 +95,8 @@ _ADAPTER_MODULES: Tuple[str, ...] = (
     "amazon",
     "alphabet",
     "jpm",
+    "exxon",
+    "micron",
 )
 
 
@@ -131,6 +133,17 @@ def _ensure_loaded() -> None:
     # Import each company module so its module-level register() call runs. This
     # is done lazily so importing this package does not eagerly pull in
     # ``render`` (which imports this package) before its primitives exist.
+    #
+    # A module may be listed here before its file exists (e.g. while another
+    # contributor is still adding it). Tolerate only that specific case — a
+    # missing top-level company module — and re-raise every other import error
+    # (including a ModuleNotFoundError raised from *within* a module that does
+    # exist) so genuine bugs are not masked.
     for name in _ADAPTER_MODULES:
-        import_module(f"{__name__}.{name}")
+        try:
+            import_module(f"{__name__}.{name}")
+        except ModuleNotFoundError as exc:
+            if exc.name == f"{__name__}.{name}":
+                continue
+            raise
     _loaded = True

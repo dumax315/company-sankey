@@ -1,0 +1,122 @@
+{
+  "company": "Exxon Mobil Corporation",
+  "ticker": "XOM",
+  "slug": "exxon",
+  "cik": "0000034088",
+  "quarters": {},
+  "optional_selectors": [
+    "sales_revenue",
+    "equity_affiliates_income",
+    "other_income"
+  ],
+  "selectors": {
+    "sales_revenue": {
+      "label": "Sales & operating rev.",
+      "concept": "Revenues",
+      "dimensions": {"srt:ProductOrServiceAxis": "xom:SalesAndOtherOperatingRevenueMember"},
+      "status": "mapped"
+    },
+    "equity_affiliates_income": {
+      "label": "Equity affiliate income",
+      "concept": "Revenues",
+      "dimensions": {"srt:ProductOrServiceAxis": "xom:IncomeFromEquityAffiliatesMember"},
+      "status": "mapped"
+    },
+    "other_income": {
+      "label": "Other income",
+      "concept": "Revenues",
+      "dimensions": {"srt:ProductOrServiceAxis": "xom:OtherRevenueMember"},
+      "status": "mapped"
+    },
+    "revenue": {
+      "label": "Total revenues",
+      "concept": "Revenues",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "crude_oil_purchases": {
+      "label": "Crude & product buys",
+      "concept": "CrudeOilAndProductPurchases",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "production_manufacturing": {
+      "label": "Production & mfg.",
+      "concept": "ProductionAndManufacturingExpenses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "sga": {
+      "label": "SG&A",
+      "concept": "SellingGeneralAndAdministrativeExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "depreciation": {
+      "label": "Deprec. & depletion",
+      "concept": "DepreciationDepletionAndAmortization",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "exploration": {
+      "label": "Exploration",
+      "concept": "ExplorationExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "pension_nonservice": {
+      "label": "Non-service pension",
+      "concept": "NetPeriodicDefinedBenefitsExpenseReversalOfExpenseExcludingServiceCostComponent",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "interest_expense": {
+      "label": "Interest expense",
+      "concept": "InterestExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "taxes_other": {
+      "label": "Taxes (non-income)",
+      "concept": "TaxesOther",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "costs_and_expenses": {
+      "label": "Total costs",
+      "concept": "CostsAndExpenses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "pretax_income": {
+      "label": "Pre-tax income",
+      "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "income_tax": {
+      "label": "Income tax",
+      "concept": "IncomeTaxExpenseBenefit",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "profit_loss": {
+      "label": "Net income incl. NCI",
+      "concept": "ProfitLoss",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "noncontrolling_interest": {
+      "label": "Noncontrolling int.",
+      "concept": "NetIncomeLossAttributableToNoncontrollingInterest",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "net_income": {
+      "label": "Net income",
+      "concept": "NetIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    }
+  }
+}

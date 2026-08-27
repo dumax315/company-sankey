@@ -1,7 +1,7 @@
 # Company Stankey
 
 This project generates auditable quarterly income-statement Sankeys for Meta,
-Amazon, and Alphabet. It
+Amazon, Alphabet, JPMorgan Chase, and ExxonMobil. It
 emits a canonical SVG with a 1080×1080 viewBox, a matching 3240×3240 PNG master,
 and a JSON manifest containing each value's SEC XBRL provenance and all
 reconciliation results.
@@ -66,6 +66,35 @@ revenue concept also varies by period (older filings use
 `RevenueFromContractWithCustomerExcludingAssessedTax`, newer ones use
 `Revenues`), as does the pre-tax income concept, and each variant is matched
 automatically.
+
+ExxonMobil uses the same workflow and resolves its company config automatically:
+
+```bash
+uv run stankey discover-filings XOM --quarters 20 --from-quarter 2026Q2 \
+  --user-agent 'Your Name your.email@example.com' \
+  --output outputs/exxon/XOM_discovered_filings.json
+uv run stankey generate-series XOM --quarters 20 --from-quarter 2026Q2 \
+  --fetch-sec --user-agent 'Your Name your.email@example.com'
+```
+
+ExxonMobil assets are written under `outputs/exxon/`, including the flat set of
+all masters in `outputs/exxon/png/`. As an integrated oil & gas company, XOM has
+no cost-of-revenue / gross-profit bridge (like a bank); its adapter reconciles a
+single "total revenues and other income" line against its eight cost and other
+deduction lines — crude oil & product purchases, production & manufacturing,
+SG&A, depreciation & depletion, exploration, non-service pension, interest
+expense, and taxes other than income — to income before income taxes, then the
+income-tax and noncontrolling-interest waterfall to net income attributable to
+ExxonMobil. Gross profit is not derived.
+
+ExxonMobil tags its revenue product/service breakdown (sales & operating
+revenue, income from equity affiliates, and other income) only in the
+standalone-quarter 10-Qs from mid-2023 onward. Older 10-Qs omit it, so those
+three revenue-component cards are drawn only when all three are present and the
+segment identity is checked only then; the remaining income-statement identities
+still reconcile without them. Derived Q4 quarters reconstruct the components (and
+every other line) as the annual 10-K value minus the nine-month 10-Q value, so
+their cards carry the derived (`*`) marker.
 
 `discover-filings` reads the company's SEC submissions history, follows historical
 submission pages when the recent feed is not deep enough, resolves each filing's
