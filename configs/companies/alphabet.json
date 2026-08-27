@@ -8,7 +8,8 @@
     "google_services_revenue",
     "google_cloud_revenue",
     "other_bets_revenue",
-    "hedging_revenue"
+    "hedging_revenue",
+    "european_commission_fine"
   ],
   "selectors": {
     "google_services_revenue": {
@@ -58,6 +59,7 @@
     "research_and_development": {"label": "R&D", "concept": "ResearchAndDevelopmentExpense", "dimensions": {}, "status": "reported"},
     "sales_and_marketing": {"label": "Sales & marketing", "concept": "SellingAndMarketingExpense", "dimensions": {}, "status": "reported"},
     "general_and_administrative": {"label": "G&A", "concept": "GeneralAndAdministrativeExpense", "dimensions": {}, "status": "reported"},
+    "european_commission_fine": {"label": "EC fine", "concept": "LossContingencyLossInPeriod", "dimensions": {}, "status": "reported"},
     "costs_and_expenses": {"label": "Costs & expenses", "concept": "CostsAndExpenses", "dimensions": {}, "status": "reported"},
     "operating_income": {"label": "Operating income", "concept": "OperatingIncomeLoss", "dimensions": {}, "status": "reported"},
     "nonoperating_income_expense": {"label": "Net other income", "concept": "NonoperatingIncomeExpense", "dimensions": {}, "status": "reported"},

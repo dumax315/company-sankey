@@ -32,6 +32,7 @@ LABEL_KEYS = (
     "research_and_development",
     "sales_and_marketing",
     "general_and_administrative",
+    "european_commission_fine",
     "pretax_income",
     "nonoperating_income_expense",
     "income_tax",
@@ -67,6 +68,16 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         "sales_and_marketing",
         "general_and_administrative",
     )
+    # Alphabet's one-off European Commission fine (e.g. 2019Q1) is an extra
+    # operating-expense line. Alphabet tags LossContingencyLossInPeriod as 0 in
+    # quarters without a fine, so draw the line only when it is actually
+    # non-zero — otherwise a zero-height node and empty card would render.
+    has_fine = (
+        "european_commission_fine" in f
+        and f["european_commission_fine"].value_millions != 0
+    )
+    if has_fine:
+        expense_keys = expense_keys + ("european_commission_fine",)
 
     operating = f["operating_income"].value_millions
     nonoperating = f["nonoperating_income_expense"].value_millions
@@ -117,6 +128,11 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         ),
         "net_income": Node("net_income", 873, 340, h_of(f, "net_income"), GREEN if net_is_income else PINK),
     }
+    # Optional extra operating-expense node for the European Commission fine.
+    if has_fine:
+        nodes["european_commission_fine"] = Node(
+            "european_commission_fine", 663, 875, h_of(f, "european_commission_fine"), PINK
+        )
     # Segment revenue nodes stack to the left of consolidated revenue. Left-side
     # label cards are anchored to each node's vertical centre, so we space the
     # centres by a fixed stride (larger than a label card's height) and derive
@@ -210,6 +226,15 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
 
 def build_checks(f: dict, tolerance_millions: int, check) -> list:
     checks = []
+    # Alphabet booked a one-off European Commission antitrust fine as a
+    # separate operating-expense line in a few quarters (e.g. 2019Q1). When
+    # tagged, it is part of total costs and expenses, so fold it into the
+    # operating-expense identities; otherwise it is zero.
+    fine = (
+        f["european_commission_fine"].value_millions
+        if "european_commission_fine" in f
+        else 0
+    )
     # Segment revenue plus the intercompany hedging adjustment reconciles to
     # consolidated revenue. Alphabet does not tag segment revenue in every
     # extracted instance (nine-month and annual filings omit it), and some
@@ -241,7 +266,8 @@ def build_checks(f: dict, tolerance_millions: int, check) -> list:
                 f["gross_profit"].value_millions
                 - f["research_and_development"].value_millions
                 - f["sales_and_marketing"].value_millions
-                - f["general_and_administrative"].value_millions,
+                - f["general_and_administrative"].value_millions
+                - fine,
                 tolerance_millions,
             ),
             check(
@@ -250,7 +276,8 @@ def build_checks(f: dict, tolerance_millions: int, check) -> list:
                 f["cost_of_revenue"].value_millions
                 + f["research_and_development"].value_millions
                 + f["sales_and_marketing"].value_millions
-                + f["general_and_administrative"].value_millions,
+                + f["general_and_administrative"].value_millions
+                + fine,
                 tolerance_millions,
             ),
             check(

@@ -214,15 +214,24 @@ for d in outputs/*/png; do
   company_dir=${d%/png}
   ffmpeg -hide_banner -loglevel error -y \
     -framerate 4/3 -pattern_type glob -i "$d/*.png" \
-    -t 15 -r 30 -c:v libx264 -pix_fmt yuv420p \
-    -movflags +faststart \
+    -t 15 -r 30 \
+    -vf "scale=1080:-1:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p" \
+    -c:v libx264 -movflags +faststart \
     "$company_dir/$(basename "$company_dir").mp4"
 done
 ```
 
+The output is 1080×1920, the 9:16 vertical aspect ratio Instagram Reels (and
+TikTok / YouTube Shorts) display full-screen without cropping or letterboxing.
+The square Sankey master is scaled to the 1080px width and centered on a black
+canvas, so it fills the horizontal frame with even black bands top and bottom —
+the same black that fills the card's rounded-corner gutter, so the padding reads
+as intentional rather than as pillarboxing.
+
 The numbered filenames are read in order, and each image remains on screen for
 0.75 seconds. For example, the Amazon video is written to
-`outputs/amazon/amazon.mp4`.
+`outputs/amazon/amazon.mp4`. Shopify has only six SEC-XBRL quarters, so its
+video is 4.5 seconds rather than 15.
 
 The flat `png/` copies get modification timestamps set to `now - N*1min`, where
 `N` is the sequence number in the filename (`01` is the newest quarter and gets
