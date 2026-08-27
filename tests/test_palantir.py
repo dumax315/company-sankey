@@ -201,6 +201,7 @@ def test_q4_treats_new_noncontrolling_interest_as_zero_before_acquisition():
     config = {
         "company": "Palantir Technologies Inc.",
         "ticker": "PLTR",
+        "allow_fractional_millions": True,
         "quarters": {
             "2022Q4": {
                 "start_date": "2022-10-01",
@@ -293,4 +294,4 @@ def test_parser_resolves_usd_measure_when_unit_id_is_not_lowercase_usd(
         {"url": "", "accession": "", "document": "", "filing_date": ""},
     )
     assert extracted["facts"][0]["value"] == "392146000"
-    assert _millions(extracted["facts"][0]["value"]) == 392.146
+    assert _millions(extracted["facts"][0]["value"], allow_fractional=True) == 392.146

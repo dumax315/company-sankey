@@ -12,7 +12,7 @@ from .companies import get_adapter
 from .discovery import discover_filings, quarter_sequence
 from .normalize import normalize_meta, normalize_meta_q4
 from .render import rasterize_svg, render_svg
-from .sec import download_xbrl, load_json, parse_xbrl
+from .sec import download_sec_file, load_json, parse_quarterly_html, parse_xbrl
 from .validate import ReconciliationError, checks_to_dict, validate_quarter
 
 
@@ -37,7 +37,7 @@ def _build_parser() -> argparse.ArgumentParser:
     generate.add_argument("ticker", help="company ticker (META or AMZN)")
     generate.add_argument("--quarter", required=True, help="fiscal quarter, e.g. 2026Q2")
     generate.add_argument("--output-dir", type=Path)
-    generate.add_argument("--fetch-sec", action="store_true", help="download and parse the official SEC XBRL instance")
+    generate.add_argument("--fetch-sec", action="store_true", help="download and parse the official SEC filing source")
     generate.add_argument("--user-agent", default=os.environ.get("SEC_USER_AGENT"), help="SEC-compliant identity with email")
     generate.add_argument("--config", type=Path)
     generate.add_argument(
@@ -57,7 +57,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="newest fiscal quarter, e.g. 2026Q2 (default: latest configured quarter)",
     )
     series.add_argument("--output-dir", type=Path)
-    series.add_argument("--fetch-sec", action="store_true", help="download and parse each official SEC XBRL instance")
+    series.add_argument("--fetch-sec", action="store_true", help="download and parse each official SEC filing source")
     series.add_argument("--user-agent", default=os.environ.get("SEC_USER_AGENT"), help="SEC-compliant identity with email")
     series.add_argument("--config", type=Path)
     series.add_argument(
@@ -104,7 +104,7 @@ def _output_dir(config: dict, explicit: Optional[Path]) -> Path:
     return explicit or PROJECT_ROOT / "outputs" / config.get("slug", config["ticker"].lower())
 
 
-def _fetch_quarter_xbrl(config: dict, quarter_key: str, user_agent: str) -> dict:
+def _fetch_quarter_source(config: dict, quarter_key: str, user_agent: str) -> dict:
     if quarter_key not in config["quarters"]:
         raise ValueError(f"No configured source data for {config['ticker']} {quarter_key}")
     source_config = config["quarters"][quarter_key]["source"]
@@ -116,13 +116,21 @@ def _fetch_quarter_xbrl(config: dict, quarter_key: str, user_agent: str) -> dict
         / source_config["accession"]
         / source_config["document"]
     )
-    download_xbrl(source_config["url"], raw_path, user_agent)
+    download_sec_file(source_config["url"], raw_path, user_agent)
     source = {
         "url": source_config["url"],
         "accession": source_config["accession"],
         "document": source_config["document"],
         "filing_date": source_config["filing_date"],
     }
+    if config.get("source_type") == "quarterly_html":
+        return parse_quarterly_html(
+            raw_path,
+            source,
+            config["quarters"][quarter_key],
+            config["selectors"],
+            config.get("unit", "usd").lower(),
+        )
     return parse_xbrl(raw_path, source)
 
 
@@ -143,8 +151,12 @@ def generate(args: argparse.Namespace) -> Path:
     if args.fetch_sec:
         if not args.user_agent:
             raise ValueError("--fetch-sec requires --user-agent or SEC_USER_AGENT")
-        extracted = _fetch_quarter_xbrl(config, quarter_key, args.user_agent)
-        input_mode = "downloaded SEC XBRL instance"
+        extracted = _fetch_quarter_source(config, quarter_key, args.user_agent)
+        input_mode = (
+            "downloaded SEC quarterly HTML statement"
+            if config.get("source_type") == "quarterly_html"
+            else "downloaded SEC XBRL instance"
+        )
     else:
         fixture_path = PROJECT_ROOT / quarter_config["fixture"]
         if not fixture_path.is_file():
@@ -157,7 +169,8 @@ def generate(args: argparse.Namespace) -> Path:
         quirks.recast(quarter_key) if quirks and quirks.recast else None
     )
 
-    if args.fetch_sec and quarter_key.endswith("Q4"):
+    derives_q4 = config.get("annual_form", "10-K") != config.get("quarterly_form", "10-Q")
+    if args.fetch_sec and derives_q4 and quarter_key.endswith("Q4"):
         year = quarter_key[:4]
         nine_current_override = (
             quirks.q4_nine_month_current_key(quarter_key)
@@ -166,11 +179,11 @@ def generate(args: argparse.Namespace) -> Path:
         )
         nine_current_key = nine_current_override or f"{year}Q3"
         nine_prior_key = f"{year}Q3"
-        nine_current = _fetch_quarter_xbrl(config, nine_current_key, args.user_agent)
+        nine_current = _fetch_quarter_source(config, nine_current_key, args.user_agent)
         nine_prior = (
             nine_current
             if nine_prior_key == nine_current_key
-            else _fetch_quarter_xbrl(config, nine_prior_key, args.user_agent)
+            else _fetch_quarter_source(config, nine_prior_key, args.user_agent)
         )
         quarter = normalize_meta_q4(
             config,
@@ -184,7 +197,7 @@ def generate(args: argparse.Namespace) -> Path:
         )
         input_mode = "derived Q4 from downloaded annual and nine-month SEC XBRL instances"
     elif args.fetch_sec and recast_spec is not None:
-        recast = _fetch_quarter_xbrl(config, recast_spec.recast_quarter_key, args.user_agent)
+        recast = _fetch_quarter_source(config, recast_spec.recast_quarter_key, args.user_agent)
         quarter = normalize_meta(
             config,
             extracted,
@@ -238,11 +251,11 @@ def generate(args: argparse.Namespace) -> Path:
             },
         },
         "limitations": [
-            "Form 10-Q figures are unaudited.",
+            f"Form {quarter_config['source']['form']} figures are unaudited.",
             "The offline fixture contains selected filed facts, not the complete filing.",
             "Gross profit is derived as revenue minus cost of revenue.",
-            f"Segment/product mappings are reviewed {config['ticker']}-specific XBRL dimension mappings.",
-            "Displayed billions and year-over-year percentages are rounded; the manifest retains USD millions.",
+            f"Segment/product mappings are reviewed {config['ticker']}-specific filing mappings.",
+            f"Displayed billions and year-over-year percentages are rounded; the manifest retains {config.get('currency', 'USD').upper()} millions.",
         ],
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -258,9 +271,12 @@ def generate_series(args: argparse.Namespace) -> Path:
     args.output_dir = _output_dir(config, args.output_dir)
     start = args.from_quarter.upper() if args.from_quarter else _latest_configured_quarter(config)
     quarters = quarter_sequence(start, args.quarters)
-    q4_dependencies = [
-        f"{quarter[:4]}Q3" for quarter in quarters if quarter.endswith("Q4")
-    ]
+    derives_q4 = config.get("annual_form", "10-K") != config.get("quarterly_form", "10-Q")
+    q4_dependencies = (
+        [f"{quarter[:4]}Q3" for quarter in quarters if quarter.endswith("Q4")]
+        if derives_q4
+        else []
+    )
     required_quarters = list(dict.fromkeys([*quarters, *q4_dependencies]))
     missing = [
         quarter for quarter in required_quarters if quarter not in config["quarters"]

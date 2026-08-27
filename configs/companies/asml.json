@@ -1,0 +1,119 @@
+{
+  "company": "ASML Holding N.V.",
+  "ticker": "ASML",
+  "slug": "asml",
+  "cik": "0000937966",
+  "currency": "EUR",
+  "unit": "eur",
+  "allow_fractional_millions": true,
+  "fiscal_year_end_month": 12,
+  "fiscal_week_based": true,
+  "period_starts_from_previous_quarter": true,
+  "source_type": "quarterly_html",
+  "quarterly_form": "6-K",
+  "annual_form": "6-K",
+  "primary_document_contains": "quarterly",
+  "source_document_contains": "financialstatements",
+  "quarters": {},
+  "selectors": {
+    "system_sales": {
+      "label": "Systems",
+      "concept": "system_sales",
+      "dimensions": {},
+      "status": "mapped",
+      "html_label": "Net system sales"
+    },
+    "service_sales": {
+      "label": "Service & field options",
+      "concept": "service_sales",
+      "dimensions": {},
+      "status": "mapped",
+      "html_label": "Net service and field option sales"
+    },
+    "revenue": {
+      "label": "Net sales",
+      "concept": "revenue",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Total net sales"
+    },
+    "cost_of_revenue": {
+      "label": "Cost of sales",
+      "concept": "cost_of_revenue",
+      "dimensions": {},
+      "status": "reported",
+      "multiplier": -1,
+      "html_label": "Total cost of sales"
+    },
+    "research_and_development": {
+      "label": "R&D",
+      "concept": "research_and_development",
+      "dimensions": {},
+      "status": "reported",
+      "multiplier": -1,
+      "html_label": "Research and development costs"
+    },
+    "selling_general_administrative": {
+      "label": "SG&A",
+      "concept": "selling_general_administrative",
+      "dimensions": {},
+      "status": "reported",
+      "multiplier": -1,
+      "html_label": "Selling, general and administrative costs"
+    },
+    "operating_income": {
+      "label": "Operating income",
+      "concept": "operating_income",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Income from operations"
+    },
+    "nonoperating_income_expense": {
+      "label": "Interest & other",
+      "concept": "nonoperating_income_expense",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Interest and other, net"
+    },
+    "pretax_income": {
+      "label": "Pre-tax income",
+      "concept": "pretax_income",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Income before income taxes"
+    },
+    "income_tax": {
+      "label": "Income tax",
+      "concept": "income_tax",
+      "dimensions": {},
+      "status": "reported",
+      "multiplier": -1,
+      "html_labels": [
+        "Income tax expense",
+        "Benefit from (provision for) income taxes",
+        "Provision for income taxes"
+      ]
+    },
+    "income_after_tax": {
+      "label": "Income after tax",
+      "concept": "income_after_tax",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Income after income taxes"
+    },
+    "equity_method_investment": {
+      "label": "Equity-method profit",
+      "concept": "equity_method_investment",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Profit related to equity method investments"
+    },
+    "net_income": {
+      "label": "Net income",
+      "concept": "net_income",
+      "dimensions": {},
+      "status": "reported",
+      "html_label": "Net income"
+    }
+  }
+}

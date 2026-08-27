@@ -3,6 +3,7 @@
   "ticker": "PLTR",
   "slug": "palantir",
   "cik": "0001321655",
+  "allow_fractional_millions": true,
   "quarters": {},
   "optional_selectors": [
     "interest_expense",

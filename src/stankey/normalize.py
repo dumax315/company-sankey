@@ -17,24 +17,37 @@ def _canonical_dimensions(dimensions: dict) -> dict:
     }
 
 
-def _matches(raw: dict, concept: str, start: str, end: str, dimensions: dict) -> bool:
+def _matches(
+    raw: dict,
+    concept: str,
+    start: str,
+    end: str,
+    dimensions: dict,
+    unit: str = "usd",
+) -> bool:
     return (
         raw["concept"] == concept
         and raw["start_date"] == start
         and raw["end_date"] == end
         and _canonical_dimensions(raw.get("dimensions", {}))
         == _canonical_dimensions(dimensions)
-        and raw.get("unit") == "usd"
+        and raw.get("unit", "").lower() == unit.lower()
     )
 
-def _select(facts: Iterable[dict], selector: dict, start: str, end: str) -> dict:
+def _select(
+    facts: Iterable[dict],
+    selector: dict,
+    start: str,
+    end: str,
+    unit: str = "usd",
+) -> dict:
     concepts = selector.get("concepts", [selector["concept"]])
     dimension_options = selector.get("dimension_options", [selector["dimensions"]])
     matches = [
         fact
         for fact in facts
         if any(
-            _matches(fact, concept, start, end, dimensions)
+            _matches(fact, concept, start, end, dimensions, unit)
             for concept in concepts
             for dimensions in dimension_options
         )
@@ -64,7 +77,7 @@ def _select(facts: Iterable[dict], selector: dict, start: str, end: str) -> dict
 
 
 def _longest_period_ending_near(
-    facts: Iterable[dict], selector: dict, target_end: str
+    facts: Iterable[dict], selector: dict, target_end: str, unit: str = "usd"
 ) -> tuple[str, str]:
     """Find the longest selector period ending on (or within a week of) a date.
 
@@ -77,7 +90,7 @@ def _longest_period_ending_near(
         fact
         for fact in facts
         if fact["concept"] in concepts
-        and fact.get("unit") == "usd"
+        and fact.get("unit", "").lower() == unit.lower()
         and any(
             _canonical_dimensions(fact.get("dimensions", {}))
             == _canonical_dimensions(dimensions)
@@ -110,12 +123,16 @@ def _longest_period_ending_near(
     return selected_start, selected_end
 
 
-def _millions(raw_value: str, multiplier: int = 1) -> float:
-    """Convert filed USD to millions without discarding sub-million precision."""
-    value = Decimal(raw_value) * multiplier / Decimal(1_000_000)
-    if value == value.to_integral_value():
-        return int(value)
-    return float(value)
+def _millions(
+    raw_value: str,
+    multiplier: int = 1,
+    *,
+    allow_fractional: bool = False,
+) -> "int | float":
+    value = Decimal(raw_value) / Decimal(1_000_000) * multiplier
+    if value != value.to_integral_value() and not allow_fractional:
+        raise FactSelectionError(f"Expected whole currency millions, received {raw_value}")
+    return int(value) if value == value.to_integral_value() else float(value)
 
 
 def _difference_millions(left: float, right: float) -> float:
@@ -152,6 +169,8 @@ def normalize_meta(
     current_input = current_extracted or extracted
     prior_input = prior_extracted or extracted
     optional_selectors = set(config.get("optional_selectors", ()))
+    unit = config.get("unit", "usd").lower()
+    allow_fractional = bool(config.get("allow_fractional_millions", False))
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
         try:
@@ -160,6 +179,7 @@ def normalize_meta(
                 selector,
                 quarter_config["start_date"],
                 quarter_config["end_date"],
+                unit,
             )
         except FactSelectionError:
             # Some disclosures (e.g. Alphabet's segment revenue and hedging
@@ -175,6 +195,7 @@ def normalize_meta(
                 selector,
                 quarter_config["prior_start_date"],
                 quarter_config["prior_end_date"],
+                unit,
             )
         except FactSelectionError:
             if key not in allow_missing_prior and key not in optional_selectors:
@@ -183,9 +204,17 @@ def normalize_meta(
         facts[key] = FinancialFact(
             key=key,
             label=selector["label"],
-            value_millions=_millions(current["value"], selector.get("multiplier", 1)),
+            value_millions=_millions(
+                current["value"],
+                selector.get("multiplier", 1),
+                allow_fractional=allow_fractional,
+            ),
             prior_value_millions=(
-                _millions(prior["value"], selector.get("multiplier", 1))
+                _millions(
+                    prior["value"],
+                    selector.get("multiplier", 1),
+                    allow_fractional=allow_fractional,
+                )
                 if prior
                 else None
             ),
@@ -226,7 +255,7 @@ def normalize_meta(
         fiscal_quarter=int(q),
         start_date=quarter_config["start_date"],
         end_date=quarter_config["end_date"],
-        currency="USD",
+        currency=config.get("currency", "USD").upper(),
         scale="millions",
         facts=facts,
     )
@@ -243,12 +272,14 @@ def normalize_meta_q4(
 ) -> Quarter:
     """Derive standalone Q4 values as annual reported facts minus nine months."""
     quarter_config = config["quarters"][quarter_key]
+    unit = config.get("unit", "usd").lower()
+    allow_fractional = bool(config.get("allow_fractional_millions", False))
     revenue_selector = config["selectors"]["revenue"]
     current_annual_period = _longest_period_ending_near(
-        annual_extracted["facts"], revenue_selector, quarter_config["end_date"]
+        annual_extracted["facts"], revenue_selector, quarter_config["end_date"], unit
     )
     prior_annual_period = _longest_period_ending_near(
-        annual_extracted["facts"], revenue_selector, quarter_config["prior_end_date"]
+        annual_extracted["facts"], revenue_selector, quarter_config["prior_end_date"], unit
     )
     current_nine_target = (
         date.fromisoformat(quarter_config["start_date"]) - timedelta(days=1)
@@ -257,17 +288,17 @@ def normalize_meta_q4(
         date.fromisoformat(quarter_config["prior_start_date"]) - timedelta(days=1)
     ).isoformat()
     current_nine_period = _longest_period_ending_near(
-        nine_month_current_extracted["facts"], revenue_selector, current_nine_target
+        nine_month_current_extracted["facts"], revenue_selector, current_nine_target, unit
     )
     prior_nine_period = _longest_period_ending_near(
-        nine_month_prior_extracted["facts"], revenue_selector, prior_nine_target
+        nine_month_prior_extracted["facts"], revenue_selector, prior_nine_target, unit
     )
     optional_selectors = set(config.get("optional_selectors", ()))
     facts: Dict[str, FinancialFact] = {}
     for key, selector in config["selectors"].items():
         try:
             annual_current = _select(
-                annual_extracted["facts"], selector, *current_annual_period
+                annual_extracted["facts"], selector, *current_annual_period, unit
             )
         except FactSelectionError:
             if key in optional_selectors:
@@ -275,7 +306,7 @@ def normalize_meta_q4(
             raise
         try:
             nine_current = _select(
-                nine_month_current_extracted["facts"], selector, *current_nine_period
+                nine_month_current_extracted["facts"], selector, *current_nine_period, unit
             )
         except FactSelectionError:
             # Optional disclosures may be absent from the annual or nine-month
@@ -291,43 +322,42 @@ def normalize_meta_q4(
                 raise
         try:
             annual_prior = _select(
-                annual_extracted["facts"], selector, *prior_annual_period
+                annual_extracted["facts"], selector, *prior_annual_period, unit
             )
         except FactSelectionError:
             if key not in allow_missing_prior and key not in optional_selectors:
                 raise
             annual_prior = None
-        if annual_prior is None:
-            nine_prior = None
-        else:
-            try:
-                nine_prior = _select(
-                    nine_month_prior_extracted["facts"], selector, *prior_nine_period
-                )
-            except FactSelectionError:
-                if selector.get("q4_missing_nine_as_zero"):
-                    nine_prior = None
-                elif key in allow_missing_prior or key in optional_selectors:
-                    nine_prior = None
-                else:
-                    raise
+        try:
+            nine_prior = _select(
+                nine_month_prior_extracted["facts"], selector, *prior_nine_period, unit
+            )
+        except FactSelectionError:
+            if selector.get("q4_missing_nine_as_zero") and annual_prior is not None:
+                nine_prior = None
+            elif key in allow_missing_prior or key in optional_selectors:
+                nine_prior = None
+            else:
+                raise
         prior_value = None
         if annual_prior is not None:
             prior_value = _millions(
-                annual_prior["value"], selector.get("multiplier", 1)
+                annual_prior["value"], selector.get("multiplier", 1),
+                allow_fractional=allow_fractional,
             )
             if nine_prior is not None:
-                prior_value = _difference_millions(
-                    prior_value,
-                    _millions(nine_prior["value"], selector.get("multiplier", 1)),
+                prior_value -= _millions(
+                    nine_prior["value"], selector.get("multiplier", 1),
+                    allow_fractional=allow_fractional,
                 )
         current_value = _millions(
-            annual_current["value"], selector.get("multiplier", 1)
+            annual_current["value"], selector.get("multiplier", 1),
+            allow_fractional=allow_fractional,
         )
         if nine_current is not None:
-            current_value = _difference_millions(
-                current_value,
-                _millions(nine_current["value"], selector.get("multiplier", 1)),
+            current_value -= _millions(
+                nine_current["value"], selector.get("multiplier", 1),
+                allow_fractional=allow_fractional,
             )
         provenance = [_provenance(annual_current, annual_extracted["source"])]
         if nine_current is not None:
@@ -376,7 +406,7 @@ def normalize_meta_q4(
         fiscal_quarter=4,
         start_date=quarter_config["start_date"],
         end_date=quarter_config["end_date"],
-        currency="USD",
+        currency=config.get("currency", "USD").upper(),
         scale="millions",
         facts=facts,
     )

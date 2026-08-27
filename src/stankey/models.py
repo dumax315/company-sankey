@@ -1,5 +1,8 @@
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+
+
+Number = Union[int, float]
 
 
 @dataclass(frozen=True)
@@ -21,10 +24,10 @@ class Provenance:
 class FinancialFact:
     key: str
     label: str
-    value_millions: float
+    value_millions: Number
     status: str
     provenance: List[Provenance]
-    prior_value_millions: Optional[float] = None
+    prior_value_millions: Optional[Number] = None
     derivation: Optional[str] = None
 
     @property

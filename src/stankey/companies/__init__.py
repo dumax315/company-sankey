@@ -98,6 +98,7 @@ _ADAPTER_MODULES: Tuple[str, ...] = (
     "exxon",
     "micron",
     "palantir",
+    "asml",
 )
 
 
