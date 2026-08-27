@@ -155,11 +155,18 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         nodes[key] = Node(key, 190, segment_y, node_height, BLUE)
         segment_y += max(node_height, 62.0) + 20.0
 
-    expense_y = {
-        "sales_and_marketing": 530.0,
-        "research_and_development": 620.0,
-        "general_and_administrative": 710.0,
-    }
+    # Pack the operating-expense column contiguously by bar height (guide
+    # Step 2) instead of a fixed pixel stride, so the flows do not fan across a
+    # long diagonal. Start the stack below the non-operating band; that band's
+    # "other non-operating" card can grow tall in loss quarters (e.g. 2022Q2's
+    # −$135.8M), so clear it with enough headroom to avoid card collisions.
+    OPEX_GAP = 30.0
+    opex_top = 560.0
+    expense_y = {}
+    running_y = opex_top
+    for key in OPERATING_EXPENSE_KEYS:
+        expense_y[key] = running_y
+        running_y += max(width(key), 34.0) + OPEX_GAP
     for key in OPERATING_EXPENSE_KEYS:
         value = f[key].value_millions
         nodes[key] = Node(

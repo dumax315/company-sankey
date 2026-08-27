@@ -427,16 +427,23 @@ def render_svg(quarter: Quarter, destination: Path) -> None:
     _validate_terminal_order(nodes, ribbons)
     quarter_label = f"Q{quarter.fiscal_quarter} FY{quarter.fiscal_year}"
     source = quarter.facts["revenue"].provenance[0]
+    # Describe the overall magnitude from the data: companies whose largest line
+    # is under $1B (e.g. Palantir's early quarters) read as "millions", not
+    # "billions". Individual card values still switch M/B per value.
+    largest_millions = max(
+        abs(fact.value_millions) for fact in quarter.facts.values()
+    )
+    magnitude_word = "billions" if largest_millions >= 1000 else "millions"
     lines: List[str] = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-labelledby="title desc">',
         f'<title id="title">{escape(quarter.ticker)} {quarter_label} income statement Sankey</title>',
-        f'<desc id="desc">Revenue and expense flows in {escape(quarter.currency)} billions based on {escape(quarter.company)} SEC filing data.</desc>',
+        f'<desc id="desc">Revenue and expense flows in {escape(quarter.currency)} {magnitude_word} based on {escape(quarter.company)} SEC filing data.</desc>',
         f'<rect width="1080" height="1080" rx="28" fill="{BACKGROUND}"/>',
         f'<text x="42" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="58" fill="{INK}">{escape(quarter.ticker)}</text>',
         f'<text x="42" y="128" font-family="Arial,sans-serif" font-weight="700" font-size="28" fill="{GREEN}">{quarter_label}</text>',
         f'<text x="204" y="128" font-family="Arial,sans-serif" font-size="28" fill="{INK}">Income statement</text>',
-        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended {_display_date(quarter.end_date)} • {escape(quarter.currency)} billions • GAAP • unaudited</text>',
+        f'<text x="42" y="164" font-family="Arial,sans-serif" font-size="17" fill="{MUTED}">Quarter ended {_display_date(quarter.end_date)} • {escape(quarter.currency)} {magnitude_word} • GAAP • unaudited</text>',
     ]
     for ribbon in ribbons:
         lines.append(f'<path class="ribbon" d="{_ribbon_path(ribbon)}" fill="{ribbon.color}" fill-opacity="0.78"/>')
