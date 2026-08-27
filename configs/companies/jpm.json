@@ -1,0 +1,70 @@
+{
+  "company": "JPMorgan Chase & Co.",
+  "ticker": "JPM",
+  "slug": "jpm",
+  "cik": "0000019617",
+  "quarters": {},
+  "selectors": {
+    "interest_income": {
+      "label": "Interest income",
+      "concept": "InterestIncomeOperating",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "interest_expense": {
+      "label": "Interest expense",
+      "concept": "InterestExpenseOperating",
+      "concepts": ["InterestExpenseOperating", "InterestExpense"],
+      "dimensions": {},
+      "status": "reported"
+    },
+    "net_interest_income": {
+      "label": "Net interest income",
+      "concept": "InterestIncomeExpenseNet",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "noninterest_income": {
+      "label": "Noninterest revenue",
+      "concept": "NoninterestIncome",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "revenue": {
+      "label": "Total net revenue",
+      "concept": "RevenuesNetOfInterestExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "provision_for_credit_losses": {
+      "label": "Provision for credit losses",
+      "concept": "ProvisionForLoanLeaseAndOtherLosses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "noninterest_expense": {
+      "label": "Noninterest expense",
+      "concept": "NoninterestExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "pretax_income": {
+      "label": "Pre-tax income",
+      "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "income_tax": {
+      "label": "Income tax",
+      "concept": "IncomeTaxExpenseBenefit",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "net_income": {
+      "label": "Net income",
+      "concept": "NetIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    }
+  }
+}

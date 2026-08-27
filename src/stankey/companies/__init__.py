@@ -94,6 +94,7 @@ _ADAPTER_MODULES: Tuple[str, ...] = (
     "meta",
     "amazon",
     "alphabet",
+    "jpm",
 )
 
 

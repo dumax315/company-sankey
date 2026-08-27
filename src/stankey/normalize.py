@@ -138,18 +138,27 @@ def normalize_meta(
             provenance=[_provenance(current, current_input["source"])],
         )
 
-    revenue = facts["revenue"]
-    cost = facts["cost_of_revenue"]
-    prior_gross = revenue.prior_value_millions - cost.prior_value_millions
-    facts["gross_profit"] = FinancialFact(
-        key="gross_profit",
-        label="Gross profit",
-        value_millions=revenue.value_millions - cost.value_millions,
-        prior_value_millions=prior_gross,
-        status="derived",
-        provenance=revenue.provenance + cost.provenance,
-        derivation="revenue - cost_of_revenue",
-    )
+    # Gross profit is a derived tech-company convenience (revenue minus cost of
+    # revenue). Banks and other companies without a cost-of-revenue line do not
+    # report it, so only derive it when both keys are present.
+    if "revenue" in facts and "cost_of_revenue" in facts:
+        revenue = facts["revenue"]
+        cost = facts["cost_of_revenue"]
+        prior_gross = None
+        if (
+            revenue.prior_value_millions is not None
+            and cost.prior_value_millions is not None
+        ):
+            prior_gross = revenue.prior_value_millions - cost.prior_value_millions
+        facts["gross_profit"] = FinancialFact(
+            key="gross_profit",
+            label="Gross profit",
+            value_millions=revenue.value_millions - cost.value_millions,
+            prior_value_millions=prior_gross,
+            status="derived",
+            provenance=revenue.provenance + cost.provenance,
+            derivation="revenue - cost_of_revenue",
+        )
     year, q = quarter_key.split("Q")
     return Quarter(
         company=config["company"],
@@ -231,20 +240,23 @@ def normalize_meta_q4(
             derivation="annual reported value - nine-month reported value",
         )
 
-    revenue = facts["revenue"]
-    cost = facts["cost_of_revenue"]
-    prior_gross = None
-    if revenue.prior_value_millions is not None and cost.prior_value_millions is not None:
-        prior_gross = revenue.prior_value_millions - cost.prior_value_millions
-    facts["gross_profit"] = FinancialFact(
-        key="gross_profit",
-        label="Gross profit",
-        value_millions=revenue.value_millions - cost.value_millions,
-        prior_value_millions=prior_gross,
-        status="derived",
-        provenance=revenue.provenance + cost.provenance,
-        derivation="revenue - cost_of_revenue",
-    )
+    # Only derive gross profit for companies that report a cost-of-revenue line
+    # (see normalize_meta). Banks omit both keys.
+    if "revenue" in facts and "cost_of_revenue" in facts:
+        revenue = facts["revenue"]
+        cost = facts["cost_of_revenue"]
+        prior_gross = None
+        if revenue.prior_value_millions is not None and cost.prior_value_millions is not None:
+            prior_gross = revenue.prior_value_millions - cost.prior_value_millions
+        facts["gross_profit"] = FinancialFact(
+            key="gross_profit",
+            label="Gross profit",
+            value_millions=revenue.value_millions - cost.value_millions,
+            prior_value_millions=prior_gross,
+            status="derived",
+            provenance=revenue.provenance + cost.provenance,
+            derivation="revenue - cost_of_revenue",
+        )
     return Quarter(
         company=config["company"],
         ticker=config["ticker"],
