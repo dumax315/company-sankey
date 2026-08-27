@@ -76,7 +76,7 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     # node begins a small gap below the previous one so incoming/outgoing flows
     # line up. GAP separates logically distinct bars within a column.
     TOP = 250.0
-    GAP = 10.0
+    GAP = 24.0
 
     def _color(key: str) -> str:
         pink_keys = {
