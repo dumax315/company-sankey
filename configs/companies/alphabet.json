@@ -9,7 +9,13 @@
     "google_cloud_revenue",
     "other_bets_revenue",
     "hedging_revenue",
-    "european_commission_fine"
+    "european_commission_fine",
+    "rev_search_other",
+    "rev_youtube_ads",
+    "rev_network",
+    "rev_google_properties",
+    "rev_subscriptions",
+    "rev_google_other"
   ],
   "selectors": {
     "google_services_revenue": {
@@ -28,7 +34,8 @@
       "dimensions": {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudMember"},
       "dimension_options": [
         {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudMember"},
-        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudSegmentMember"}
+        {"us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleCloudSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleCloudMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"}
       ],
       "status": "mapped"
     },
@@ -45,8 +52,67 @@
     "hedging_revenue": {
       "label": "Hedging gains (losses)",
       "concept": "RevenueNotFromContractWithCustomer",
+      "concepts": ["RevenueNotFromContractWithCustomer", "GainLossOnOilAndGasHedgingActivity"],
       "dimensions": {},
       "status": "reported"
+    },
+    "rev_search_other": {
+      "label": "Google Search & other",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:GoogleSearchOtherMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+      "dimension_options": [
+        {"srt:ProductOrServiceAxis": "goog:GoogleSearchOtherMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleSearchOtherMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleSearchOtherMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"}
+      ],
+      "status": "mapped"
+    },
+    "rev_youtube_ads": {
+      "label": "YouTube ads",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:YouTubeAdvertisingRevenueMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+      "dimension_options": [
+        {"srt:ProductOrServiceAxis": "goog:YouTubeAdvertisingRevenueMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"srt:ProductOrServiceAxis": "goog:YouTubeAdvertisingRevenueMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:YouTubeAdvertisingRevenueMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"}
+      ],
+      "status": "mapped"
+    },
+    "rev_network": {
+      "label": "Google Network",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+      "dimension_options": [
+        {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMembersPropertiesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMembersPropertiesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:GoogleNetworkMembersPropertiesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"}
+      ],
+      "status": "mapped"
+    },
+    "rev_google_properties": {
+      "label": "Google Properties",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:GooglePropertiesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"},
+      "status": "mapped"
+    },
+    "rev_subscriptions": {
+      "label": "Subscriptions, platforms & devices",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:SubscriptionsPlatformsAndDevicesRevenueMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+      "status": "mapped"
+    },
+    "rev_google_other": {
+      "label": "Google other",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {"srt:ProductOrServiceAxis": "goog:OtherRevenuesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+      "dimension_options": [
+        {"srt:ProductOrServiceAxis": "goog:OtherRevenuesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesMember"},
+        {"srt:ProductOrServiceAxis": "goog:OtherRevenuesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleServicesSegmentMember"},
+        {"srt:ProductOrServiceAxis": "goog:OtherRevenuesMember", "us-gaap:StatementBusinessSegmentsAxis": "goog:GoogleInc.Member"}
+      ],
+      "status": "mapped"
     },
     "revenue": {
       "label": "Revenues",

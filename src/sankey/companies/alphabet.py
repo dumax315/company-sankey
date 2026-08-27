@@ -22,7 +22,12 @@ from . import CompanyAdapter, register
 
 
 LABEL_KEYS = (
-    "google_services_revenue",
+    "rev_search_other",
+    "rev_youtube_ads",
+    "rev_network",
+    "rev_google_properties",
+    "rev_subscriptions",
+    "rev_google_other",
     "google_cloud_revenue",
     "other_bets_revenue",
     "revenue",
@@ -45,6 +50,50 @@ _ALL_SEGMENT_KEYS = (
     "other_bets_revenue",
 )
 
+# Product-level revenue leaves, in top-to-bottom display order. Alphabet's
+# filed revenue detail drifts by era, so each quarter presents a different
+# subset: 2019 splits Google ads into Properties + Network (no Search/YouTube,
+# no Cloud line); 2020 adds Search & other, YouTube, and a Cloud product line;
+# 2021 introduces reportable segments and an "Other" services line; 2022+
+# replaces "Other" with Subscriptions, platforms & devices. We draw whichever
+# leaves are tagged, so the revenue column always mirrors that quarter's filing.
+_REVENUE_LEAF_ORDER = (
+    "rev_search_other",
+    "rev_youtube_ads",
+    "rev_network",
+    "rev_google_properties",
+    "rev_subscriptions",
+    "rev_google_other",
+    "google_cloud_revenue",
+    "other_bets_revenue",
+)
+
+
+def _revenue_leaf_keys(f: dict) -> list:
+    """Return the present, non-overlapping revenue leaves for this quarter.
+
+    ``rev_google_properties`` is a 2019 leaf, but in 2020 filings the same
+    ``GooglePropertiesMember`` fact is a *subtotal* of Search & other + YouTube
+    ads. Whenever the finer Search & other split is present we therefore drop
+    Properties to avoid double-counting.
+
+    A few filings tag the breakdown incompletely — e.g. 2019Q1 does not give
+    "Google other" its own product dimension, so the tagged leaves alone do not
+    add up. We only return a leaf set when it plus the hedging adjustment
+    reconciles to consolidated revenue; otherwise we return no leaves so the
+    chart omits the revenue column rather than showing a set that does not sum.
+    """
+    keys = [key for key in _REVENUE_LEAF_ORDER if key in f]
+    if "rev_search_other" in keys and "rev_google_properties" in keys:
+        keys.remove("rev_google_properties")
+    if not keys:
+        return []
+    leaf_total = sum(f[key].value_millions for key in keys)
+    hedging = f["hedging_revenue"].value_millions if "hedging_revenue" in f else 0
+    if "revenue" in f and abs(leaf_total + hedging - f["revenue"].value_millions) > 1:
+        return []
+    return keys
+
 
 def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     f = quarter.facts
@@ -56,13 +105,10 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     def width(key: str) -> float:
         return width_value(f[key].value_millions)
 
-    # Alphabet tags segment revenue only in some extracted instances (Q1/Q2);
-    # nine-month and annual filings omit it, and a few filings tag only a subset.
-    # Draw the segment column only when all three segments are present so a lone
-    # segment never appears to feed the whole revenue node.
-    segment_keys = (
-        list(_ALL_SEGMENT_KEYS) if all(key in f for key in _ALL_SEGMENT_KEYS) else []
-    )
+    # Draw whichever product-level revenue leaves this quarter's filing tags, so
+    # the revenue column mirrors the report. Falls back to no column when a
+    # nine-month or annual instance omits the breakdown entirely.
+    segment_keys = _revenue_leaf_keys(f)
     expense_keys = (
         "research_and_development",
         "sales_and_marketing",
@@ -137,11 +183,12 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     # label cards are anchored to each node's vertical centre, so we space the
     # centres by a fixed stride (larger than a label card's height) and derive
     # each node's top from its own height. This keeps cards from colliding even
-    # when a segment (Other Bets) is only a few pixels tall.
+    # when a leaf (Other Bets) is only a few pixels tall. The leaves extend
+    # downward from the revenue node's top — matching the flow direction of the
+    # rest of the diagram — rather than straddling the revenue node's centre.
     segment_stride = 72.0
-    segment_block_height = segment_stride * (len(segment_keys) - 1) if segment_keys else 0.0
-    revenue_center = nodes["revenue"].y + h_of(f, "revenue") / 2
-    center_y = revenue_center - segment_block_height / 2
+    first_center = nodes["revenue"].y + h_of(f, "revenue") / 2 if len(segment_keys) <= 1 else nodes["revenue"].y + segment_stride / 2
+    center_y = first_center
     for key in segment_keys:
         node_height = width(key)
         nodes[key] = Node(key, 190, center_y - node_height / 2, node_height, BLUE)
@@ -235,20 +282,19 @@ def build_checks(f: dict, tolerance_millions: int, check) -> list:
         if "european_commission_fine" in f
         else 0
     )
-    # Segment revenue plus the intercompany hedging adjustment reconciles to
-    # consolidated revenue. Alphabet does not tag segment revenue in every
-    # extracted instance (nine-month and annual filings omit it), and some
-    # quarters fold the hedging adjustment into the consolidated total instead
-    # of tagging it separately. The identity is therefore checked only when all
-    # three segments and the hedging line are present.
-    if all(key in f for key in _ALL_SEGMENT_KEYS) and "hedging_revenue" in f:
-        segment_total = sum(f[key].value_millions for key in _ALL_SEGMENT_KEYS)
-        hedging = f["hedging_revenue"].value_millions
+    # The product-level revenue leaves this quarter tags, plus the intercompany
+    # hedging adjustment, reconcile to consolidated revenue. The leaf set drifts
+    # by era (see _revenue_leaf_keys); nine-month and annual instances omit the
+    # breakdown entirely. Check the identity only when leaves are present.
+    leaf_keys = _revenue_leaf_keys(f)
+    if leaf_keys:
+        leaf_total = sum(f[key].value_millions for key in leaf_keys)
+        hedging = f["hedging_revenue"].value_millions if "hedging_revenue" in f else 0
         checks.append(
             check(
-                "segment revenue plus hedging equals consolidated revenue",
+                "revenue lines plus hedging equal consolidated revenue",
                 f["revenue"].value_millions,
-                segment_total + hedging,
+                leaf_total + hedging,
                 tolerance_millions,
             )
         )
