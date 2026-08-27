@@ -118,7 +118,8 @@ def _packed_flows(
 
 def _format_fact(fact: FinancialFact) -> str:
     if abs(fact.value_millions) < 1000:
-        value = f"${abs(fact.value_millions):,}M"
+        millions = f"{abs(fact.value_millions):,.3f}".rstrip("0").rstrip(".")
+        value = f"${millions}M"
     else:
         value = f"${abs(fact.value_millions) / 1000:.1f}B"
     if fact.value_millions < 0:

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Dict, Iterable, List, Optional, Sequence
 
 from .models import FinancialFact, Provenance, Quarter
@@ -109,11 +110,17 @@ def _longest_period_ending_near(
     return selected_start, selected_end
 
 
-def _millions(raw_value: str, multiplier: int = 1) -> int:
-    value = int(raw_value)
-    if value % 1_000_000:
-        raise FactSelectionError(f"Expected whole USD millions, received {value}")
-    return value // 1_000_000 * multiplier
+def _millions(raw_value: str, multiplier: int = 1) -> float:
+    """Convert filed USD to millions without discarding sub-million precision."""
+    value = Decimal(raw_value) * multiplier / Decimal(1_000_000)
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value)
+
+
+def _difference_millions(left: float, right: float) -> float:
+    """Subtract normalized figures while suppressing binary float noise."""
+    return round(left - right, 6)
 
 
 def _provenance(raw: dict, source: dict) -> Provenance:
@@ -170,7 +177,7 @@ def normalize_meta(
                 quarter_config["prior_end_date"],
             )
         except FactSelectionError:
-            if key not in allow_missing_prior:
+            if key not in allow_missing_prior and key not in optional_selectors:
                 raise
             prior = None
         facts[key] = FinancialFact(
@@ -197,11 +204,15 @@ def normalize_meta(
             revenue.prior_value_millions is not None
             and cost.prior_value_millions is not None
         ):
-            prior_gross = revenue.prior_value_millions - cost.prior_value_millions
+            prior_gross = _difference_millions(
+                revenue.prior_value_millions, cost.prior_value_millions
+            )
         facts["gross_profit"] = FinancialFact(
             key="gross_profit",
             label="Gross profit",
-            value_millions=revenue.value_millions - cost.value_millions,
+            value_millions=_difference_millions(
+                revenue.value_millions, cost.value_millions
+            ),
             prior_value_millions=prior_gross,
             status="derived",
             provenance=revenue.provenance + cost.provenance,
@@ -283,35 +294,40 @@ def normalize_meta_q4(
                 annual_extracted["facts"], selector, *prior_annual_period
             )
         except FactSelectionError:
-            if key not in allow_missing_prior:
+            if key not in allow_missing_prior and key not in optional_selectors:
                 raise
             annual_prior = None
-        try:
-            nine_prior = _select(
-                nine_month_prior_extracted["facts"], selector, *prior_nine_period
-            )
-        except FactSelectionError:
-            if selector.get("q4_missing_nine_as_zero") and annual_prior is not None:
-                nine_prior = None
-            elif key in allow_missing_prior:
-                nine_prior = None
-            else:
-                raise
+        if annual_prior is None:
+            nine_prior = None
+        else:
+            try:
+                nine_prior = _select(
+                    nine_month_prior_extracted["facts"], selector, *prior_nine_period
+                )
+            except FactSelectionError:
+                if selector.get("q4_missing_nine_as_zero"):
+                    nine_prior = None
+                elif key in allow_missing_prior or key in optional_selectors:
+                    nine_prior = None
+                else:
+                    raise
         prior_value = None
         if annual_prior is not None:
             prior_value = _millions(
                 annual_prior["value"], selector.get("multiplier", 1)
             )
             if nine_prior is not None:
-                prior_value -= _millions(
-                    nine_prior["value"], selector.get("multiplier", 1)
+                prior_value = _difference_millions(
+                    prior_value,
+                    _millions(nine_prior["value"], selector.get("multiplier", 1)),
                 )
         current_value = _millions(
             annual_current["value"], selector.get("multiplier", 1)
         )
         if nine_current is not None:
-            current_value -= _millions(
-                nine_current["value"], selector.get("multiplier", 1)
+            current_value = _difference_millions(
+                current_value,
+                _millions(nine_current["value"], selector.get("multiplier", 1)),
             )
         provenance = [_provenance(annual_current, annual_extracted["source"])]
         if nine_current is not None:
@@ -339,11 +355,15 @@ def normalize_meta_q4(
         cost = facts["cost_of_revenue"]
         prior_gross = None
         if revenue.prior_value_millions is not None and cost.prior_value_millions is not None:
-            prior_gross = revenue.prior_value_millions - cost.prior_value_millions
+            prior_gross = _difference_millions(
+                revenue.prior_value_millions, cost.prior_value_millions
+            )
         facts["gross_profit"] = FinancialFact(
             key="gross_profit",
             label="Gross profit",
-            value_millions=revenue.value_millions - cost.value_millions,
+            value_millions=_difference_millions(
+                revenue.value_millions, cost.value_millions
+            ),
             prior_value_millions=prior_gross,
             status="derived",
             provenance=revenue.provenance + cost.provenance,
