@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-import stankey.render as render_module
-from stankey.models import FinancialFact, Provenance, Quarter
-from stankey.normalize import FactSelectionError, _select, normalize_meta
-from stankey.validate import validate_quarter
+import sankey.render as render_module
+from sankey.models import FinancialFact, Provenance, Quarter
+from sankey.normalize import FactSelectionError, _select, normalize_meta
+from sankey.validate import validate_quarter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

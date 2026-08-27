@@ -13,7 +13,7 @@ rules. Use:
 For example:
 
 ```bash
-uv run stankey generate-series META --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series META --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Theodore Halpern theomhalpern@gmail.com'
 ```
 

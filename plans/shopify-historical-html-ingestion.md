@@ -129,9 +129,9 @@ Run:
 
 ```bash
 uv run pytest
-uv run stankey discover-filings SHOP --quarters 20 --from-quarter 2026Q2 \
+uv run sankey discover-filings SHOP --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Theodore Halpern theomhalpern@gmail.com'
-uv run stankey generate-series SHOP --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series SHOP --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Theodore Halpern theomhalpern@gmail.com'
 ```
 

@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "company-stankey"
+name = "company-sankey"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

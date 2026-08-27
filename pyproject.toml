@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "company-stankey"
+name = "company-sankey"
 version = "0.1.0"
 description = "Auditable quarterly income-statement Sankey images"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ dependencies = ["resvg_py>=0.3,<0.6"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-stankey = "stankey.cli:main"
+sankey = "sankey.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-import stankey.render as render_module
-from stankey.models import FinancialFact, Provenance, Quarter
-from stankey.normalize import _millions, _select, normalize_meta_q4
-from stankey.sec import parse_xbrl
-from stankey.validate import ReconciliationError, validate_quarter
+import sankey.render as render_module
+from sankey.models import FinancialFact, Provenance, Quarter
+from sankey.normalize import _millions, _select, normalize_meta_q4
+from sankey.sec import parse_xbrl
+from sankey.validate import ReconciliationError, validate_quarter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

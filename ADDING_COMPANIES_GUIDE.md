@@ -39,12 +39,12 @@ render_svg → adapter.layout → SVG → resvg → PNG + JSON manifest
 `normalize_meta`, `normalize_meta_q4`, `discover_filings`, and the CLI are all
 **generic** and rarely need per-company changes. Everything that varies between
 companies now lives in a single **adapter module** under
-`src/stankey/companies/`. Adding a company means adding that one module (plus a
+`src/sankey/companies/`. Adding a company means adding that one module (plus a
 config and a test) — the core files (`render.py`, `validate.py`, `cli.py`) no
 longer grow per company.
 
 Each company registers a `CompanyAdapter` (see
-`src/stankey/companies/__init__.py`) that carries:
+`src/sankey/companies/__init__.py`) that carries:
 
 - `ticker`, `slug`, `config_filename`
 - `layout(quarter)` → `(nodes, ribbons)` — the Sankey layout
@@ -79,7 +79,7 @@ curl -s -H 'User-Agent: You you@example.com' \
 
 # 3. Inventory the income-statement facts for a single 3-month period
 uv run python -c "
-from src.stankey.sec import parse_xbrl
+from src.sankey.sec import parse_xbrl
 from pathlib import Path
 d = parse_xbrl(Path('/tmp/inst.xml'), {'url':'','accession':'','document':'','filing_date':''})
 per = ('2025-04-01','2025-06-30')  # the quarter's start/end
@@ -172,7 +172,7 @@ Notes:
   matches disagree in value. Duplicate identical values (same number under two
   concept aliases) are fine — they dedupe.
 
-## Step 2 — Create the adapter module `src/stankey/companies/<slug>.py`
+## Step 2 — Create the adapter module `src/sankey/companies/<slug>.py`
 
 Copy `companies/amazon.py` (richest example) or `companies/alphabet.py` (optional
 segments) and adjust. The module defines the layout and checks, then calls
@@ -287,7 +287,7 @@ dispatch branches to edit:
 
 ## Step 3 — Register the module
 
-In `src/stankey/companies/__init__.py`, add your module to `_ADAPTER_MODULES`:
+In `src/sankey/companies/__init__.py`, add your module to `_ADAPTER_MODULES`:
 
 ```python
 _ADAPTER_MODULES = ("meta", "amazon", "alphabet", "jpm", "<slug>")
@@ -337,7 +337,7 @@ inspectable.
 
 ```bash
 uv run pytest
-uv run stankey generate-series TICKER --quarters 4 --from-quarter 2026Q2 \
+uv run sankey generate-series TICKER --quarters 4 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'You you@example.com'
 ```
 

@@ -1,9 +1,9 @@
 from pathlib import Path
 
-import stankey.render as render_module
-from stankey.models import FinancialFact, Provenance, Quarter
-from stankey.normalize import _select
-from stankey.validate import validate_quarter
+import sankey.render as render_module
+from sankey.models import FinancialFact, Provenance, Quarter
+from sankey.normalize import _select
+from sankey.validate import validate_quarter
 
 
 def _amazon_quarter(values: dict, quarter: int = 1) -> Quarter:

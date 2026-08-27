@@ -31,7 +31,7 @@ def _hash(path: Path) -> str:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="stankey")
+    parser = argparse.ArgumentParser(prog="sankey")
     subparsers = parser.add_subparsers(dest="command", required=True)
     generate = subparsers.add_parser("generate", help="generate quarterly Sankey assets")
     generate.add_argument("ticker", help="company ticker (META or AMZN)")
@@ -225,7 +225,7 @@ def generate(args: argparse.Namespace) -> Path:
     manifest = {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "generator": "company-stankey 0.1.0",
+        "generator": "company-sankey 0.1.0",
         "input_mode": input_mode,
         "source": extracted["source"],
         "quarter": quarter.to_dict(),

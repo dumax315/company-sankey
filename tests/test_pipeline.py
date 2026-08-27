@@ -8,18 +8,18 @@ from pathlib import Path
 
 import pytest
 
-import stankey.render as render_module
-import stankey.cli as cli_module
-from stankey.cli import (
+import sankey.render as render_module
+import sankey.cli as cli_module
+from sankey.cli import (
     DEFAULT_CONFIG,
     DEFAULT_FIXTURE,
     generate,
     generate_series,
     quarter_sequence,
 )
-from stankey.normalize import normalize_meta, normalize_meta_q4
-from stankey.sec import load_json
-from stankey.validate import ReconciliationError, validate_quarter
+from sankey.normalize import normalize_meta, normalize_meta_q4
+from sankey.sec import load_json
+from sankey.validate import ReconciliationError, validate_quarter
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_q4_normalization_derives_annual_less_nine_months(quarter):
 
 
 def test_labels_follow_node_positions_and_center_when_vertical(quarter):
-    from stankey.companies import get_adapter
+    from sankey.companies import get_adapter
 
     nodes, ribbons = render_module._layout(quarter)
     below = frozenset(get_adapter(quarter.ticker).below_terminals)
@@ -115,7 +115,7 @@ def test_labels_follow_node_positions_and_center_when_vertical(quarter):
 
 
 def test_above_labels_pack_horizontally_without_vertical_stacking(quarter):
-    from stankey.companies import get_adapter
+    from sankey.companies import get_adapter
 
     nodes, ribbons = render_module._layout(quarter)
     nodes_by_key = {node.key: node for node in nodes}

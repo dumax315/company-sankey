@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-import stankey.render as render_module
-from stankey.models import FinancialFact, Provenance, Quarter
-from stankey.normalize import normalize_meta_q4
-from stankey.validate import ReconciliationError, validate_quarter
+import sankey.render as render_module
+from sankey.models import FinancialFact, Provenance, Quarter
+from sankey.normalize import normalize_meta_q4
+from sankey.validate import ReconciliationError, validate_quarter
 
 
 LABELS = {

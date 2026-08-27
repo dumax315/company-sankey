@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-import stankey.render as render_module
-from stankey.models import FinancialFact, Provenance, Quarter
-from stankey.validate import ReconciliationError, validate_quarter
+import sankey.render as render_module
+from sankey.models import FinancialFact, Provenance, Quarter
+from sankey.validate import ReconciliationError, validate_quarter
 
 
 SHOP_LABELS = {

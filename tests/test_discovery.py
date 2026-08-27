@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import stankey.cli as cli_module
-from stankey.discovery import _select_xbrl_document, discover_filings
+import sankey.cli as cli_module
+from sankey.discovery import _select_xbrl_document, discover_filings
 
 
 @pytest.fixture
@@ -196,7 +196,7 @@ def test_discovery_supports_week_based_august_fiscal_year():
 
 
 def test_week_based_fiscal_quarter_allows_one_month_end_date_drift():
-    from stankey.discovery import _quarter_key
+    from sankey.discovery import _quarter_key
 
     assert _quarter_key("2023-06-01", fiscal_year_end_month=8) == "2023Q3"
     assert _quarter_key("2021-09-02", fiscal_year_end_month=8) == "2021Q4"

@@ -128,7 +128,7 @@ The validation fixture set must include Q1 2026's unusual tax benefit, at least 
 
 ```text
 pyproject.toml
-src/stankey/
+src/sankey/
   cli.py
   sec.py
   xbrl.py
@@ -165,7 +165,7 @@ Ingest Q3 2021 through Q2 2026, resolve taxonomy/segment changes in `meta.yaml`,
 
 ### Phase 4: Hardening for repeat runs
 
-Add a CLI such as `stankey generate META --quarters 20`, retries and SEC throttling, reproducible builds, unit/golden tests, and contributor documentation. Generalization to a second company begins only after the Meta set passes review.
+Add a CLI such as `sankey generate META --quarters 20`, retries and SEC throttling, reproducible builds, unit/golden tests, and contributor documentation. Generalization to a second company begins only after the Meta set passes review.
 
 ## Deferred Product Decisions
 

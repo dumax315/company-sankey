@@ -1,4 +1,4 @@
-# Company Stankey
+# Company Sankey
 
 This project generates auditable quarterly income-statement Sankeys for Meta,
 Amazon, Alphabet, Shopify, JPMorgan Chase, ExxonMobil, and Micron. It
@@ -13,10 +13,10 @@ creates an isolated `.venv` from the checked-in lockfile.
 
 ```bash
 uv sync
-uv run stankey generate META --quarter 2026Q2
-uv run stankey generate-series META --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate META --quarter 2026Q2
+uv run sankey generate-series META --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
-uv run stankey discover-filings META --quarters 20 \
+uv run sankey discover-filings META --quarters 20 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/meta/META_discovered_filings.json
 uv run pytest
@@ -25,10 +25,10 @@ uv run pytest
 Amazon uses the same workflow and resolves its company config automatically:
 
 ```bash
-uv run stankey discover-filings AMZN --quarters 20 --from-quarter 2026Q2 \
+uv run sankey discover-filings AMZN --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/amazon/AMZN_discovered_filings.json
-uv run stankey generate-series AMZN --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series AMZN --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -41,10 +41,10 @@ Profit and loss quarters are rendered with sign-aware flows.
 Alphabet uses the same workflow and resolves its company config automatically:
 
 ```bash
-uv run stankey discover-filings GOOGL --quarters 20 --from-quarter 2026Q2 \
+uv run sankey discover-filings GOOGL --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/alphabet/GOOGL_discovered_filings.json
-uv run stankey generate-series GOOGL --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series GOOGL --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -71,10 +71,10 @@ Shopify uses the same workflow for the six continuous standard-XBRL quarters
 available since it began filing Forms 10-Q and 10-K in 2025:
 
 ```bash
-uv run stankey discover-filings SHOP --quarters 6 --from-quarter 2026Q2 \
+uv run sankey discover-filings SHOP --quarters 6 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/shopify/SHOP_discovered_filings.json
-uv run stankey generate-series SHOP --quarters 6 --from-quarter 2026Q2 \
+uv run sankey generate-series SHOP --quarters 6 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -94,10 +94,10 @@ quarterly facts needed by this project.
 ExxonMobil uses the same workflow and resolves its company config automatically:
 
 ```bash
-uv run stankey discover-filings XOM --quarters 20 --from-quarter 2026Q2 \
+uv run sankey discover-filings XOM --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/exxon/XOM_discovered_filings.json
-uv run stankey generate-series XOM --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series XOM --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -124,10 +124,10 @@ Micron uses the same workflow, with fiscal-quarter labels based on its
 52/53-week fiscal year ending in August:
 
 ```bash
-uv run stankey discover-filings MU --quarters 20 --from-quarter 2026Q3 \
+uv run sankey discover-filings MU --quarters 20 --from-quarter 2026Q3 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/micron/MU_discovered_filings.json
-uv run stankey generate-series MU --quarters 20 --from-quarter 2026Q3 \
+uv run sankey generate-series MU --quarters 20 --from-quarter 2026Q3 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -144,10 +144,10 @@ zero.
 Palantir uses the same workflow and resolves its company config automatically:
 
 ```bash
-uv run stankey discover-filings PLTR --quarters 20 --from-quarter 2026Q2 \
+uv run sankey discover-filings PLTR --quarters 20 --from-quarter 2026Q2 \
   --user-agent 'Your Name your.email@example.com' \
   --output outputs/palantir/PLTR_discovered_filings.json
-uv run stankey generate-series PLTR --quarters 20 --from-quarter 2026Q2 \
+uv run sankey generate-series PLTR --quarters 20 --from-quarter 2026Q2 \
   --fetch-sec --user-agent 'Your Name your.email@example.com'
 ```
 
@@ -243,7 +243,7 @@ facts extracted from Meta's SEC XBRL instance. To re-download and parse the
 official instance, identify yourself to the SEC:
 
 ```bash
-uv run stankey generate META --quarter 2026Q2 --fetch-sec \
+uv run sankey generate META --quarter 2026Q2 --fetch-sec \
   --user-agent 'Your Name your.email@example.com'
 ```
 
