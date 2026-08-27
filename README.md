@@ -155,6 +155,27 @@ Use `--from-quarter 2026Q2` to reproduce a range from a specific point. The
 command validates that every requested quarter has source metadata before
 starting generation.
 
+## Create MP4 videos
+
+With [FFmpeg](https://ffmpeg.org/) installed, the 20 numbered PNG masters for
+each company can be combined into a 15-second MP4. This batch command creates
+one video in every company output directory:
+
+```bash
+for d in outputs/*/png; do
+  company_dir=${d%/png}
+  ffmpeg -hide_banner -loglevel error -y \
+    -framerate 4/3 -pattern_type glob -i "$d/*.png" \
+    -t 15 -r 30 -c:v libx264 -pix_fmt yuv420p \
+    -movflags +faststart \
+    "$company_dir/$(basename "$company_dir").mp4"
+done
+```
+
+The numbered filenames are read in order, and each image remains on screen for
+0.75 seconds. For example, the Amazon video is written to
+`outputs/amazon/amazon.mp4`.
+
 The flat `png/` copies get modification timestamps set to `now - N*1min`, where
 `N` is the sequence number in the filename (`01` is the newest quarter and gets
 the latest timestamp, higher numbers are older quarters and get earlier
