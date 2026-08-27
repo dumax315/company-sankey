@@ -7,10 +7,10 @@ from .models import Quarter
 @dataclass(frozen=True)
 class Check:
     name: str
-    expected_millions: int
-    actual_millions: int
-    difference_millions: int
-    tolerance_millions: int
+    expected_millions: float
+    actual_millions: float
+    difference_millions: float
+    tolerance_millions: float
     passed: bool
 
 
@@ -21,7 +21,7 @@ class ReconciliationError(ValueError):
         self.checks = checks
 
 
-def _check(name: str, expected: int, actual: int, tolerance: int) -> Check:
+def _check(name: str, expected: float, actual: float, tolerance: float) -> Check:
     difference = actual - expected
     return Check(name, expected, actual, difference, tolerance, abs(difference) <= tolerance)
 

@@ -1,0 +1,159 @@
+{
+  "company": "Palantir Technologies Inc.",
+  "ticker": "PLTR",
+  "slug": "palantir",
+  "cik": "0001321655",
+  "quarters": {},
+  "optional_selectors": [
+    "interest_expense",
+    "profit_loss",
+    "noncontrolling_interest"
+  ],
+  "selectors": {
+    "government_revenue": {
+      "label": "Government",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "concepts": [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "RevenueFromContractWithCustomerIncludingAssessedTax"
+      ],
+      "dimensions": {
+        "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+        "us-gaap:StatementBusinessSegmentsAxis": "pltr:GovernmentOperatingSegmentMember"
+      },
+      "dimension_options": [
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:StatementBusinessSegmentsAxis": "pltr:GovernmentOperatingSegmentMember"
+        },
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:AccountsNotesLoansAndFinancingReceivablesByLegalEntityOfCounterpartyTypeAxis": "us-gaap:GovernmentMember"
+        }
+      ],
+      "status": "mapped"
+    },
+    "commercial_revenue": {
+      "label": "Commercial",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "concepts": [
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "RevenueFromContractWithCustomerIncludingAssessedTax"
+      ],
+      "dimensions": {
+        "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+        "us-gaap:StatementBusinessSegmentsAxis": "pltr:CommercialOperatingSegmentMember"
+      },
+      "dimension_options": [
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:StatementBusinessSegmentsAxis": "pltr:CommercialOperatingSegmentMember"
+        },
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:StatementBusinessSegmentsAxis": "pltr:CommercialMember"
+        },
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:StatementBusinessSegmentsAxis": "pltr:CommercialSegmentMember"
+        },
+        {
+          "srt:ConsolidationItemsAxis": "us-gaap:OperatingSegmentsMember",
+          "us-gaap:AccountsNotesLoansAndFinancingReceivablesByLegalEntityOfCounterpartyTypeAxis": "pltr:CommercialMember"
+        }
+      ],
+      "status": "mapped"
+    },
+    "revenue": {
+      "label": "Revenue",
+      "concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "cost_of_revenue": {
+      "label": "Cost of revenue",
+      "concept": "CostOfRevenue",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "sales_and_marketing": {
+      "label": "Sales & marketing",
+      "concept": "SellingAndMarketingExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "research_and_development": {
+      "label": "R&D",
+      "concept": "ResearchAndDevelopmentExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "general_and_administrative": {
+      "label": "G&A",
+      "concept": "GeneralAndAdministrativeExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "operating_expenses": {
+      "label": "Operating expenses",
+      "concept": "OperatingExpenses",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "operating_income": {
+      "label": "Operating income",
+      "concept": "OperatingIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "investment_income": {
+      "label": "Interest income",
+      "concept": "InvestmentIncomeInterest",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "interest_expense": {
+      "label": "Interest expense",
+      "concept": "InterestExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "other_nonoperating_income_expense": {
+      "label": "Other non-operating",
+      "concept": "OtherNonoperatingIncomeExpense",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "pretax_income": {
+      "label": "Pre-tax income",
+      "concept": "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "income_tax": {
+      "label": "Income tax",
+      "concept": "IncomeTaxExpenseBenefit",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "profit_loss": {
+      "label": "Net income incl. NCI",
+      "concept": "ProfitLoss",
+      "dimensions": {},
+      "status": "reported"
+    },
+    "noncontrolling_interest": {
+      "label": "Noncontrolling int.",
+      "concept": "NetIncomeLossAttributableToNoncontrollingInterest",
+      "dimensions": {},
+      "q4_missing_nine_as_zero": true,
+      "status": "reported"
+    },
+    "net_income": {
+      "label": "Net income",
+      "concept": "NetIncomeLoss",
+      "dimensions": {},
+      "status": "reported"
+    }
+  }
+}

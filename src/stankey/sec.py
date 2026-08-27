@@ -79,6 +79,14 @@ def parse_xbrl(path: Path, source: Dict[str, str]) -> dict:
     """Extract duration USD facts without interpreting their accounting meaning."""
     root = ET.parse(path).getroot()
     ns = {"x": XBRL_NS, "xbrldi": XBRLDI_NS}
+    usd_unit_ids = {
+        unit.attrib["id"]
+        for unit in root.findall("x:unit", ns)
+        if any(
+            (measure.text or "").rsplit(":", 1)[-1].upper() == "USD"
+            for measure in unit.findall("x:measure", ns)
+        )
+    }
     contexts: Dict[str, dict] = {}
     for context in root.findall("x:context", ns):
         start = context.find(".//x:startDate", ns)
@@ -99,7 +107,7 @@ def parse_xbrl(path: Path, source: Dict[str, str]) -> dict:
     seen = set()
     for element in root:
         context_id = element.attrib.get("contextRef")
-        if context_id not in contexts or element.attrib.get("unitRef") != "usd":
+        if context_id not in contexts or element.attrib.get("unitRef") not in usd_unit_ids:
             continue
         raw_value = (element.text or "").strip()
         if not raw_value:

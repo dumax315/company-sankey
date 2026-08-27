@@ -21,10 +21,10 @@ class Provenance:
 class FinancialFact:
     key: str
     label: str
-    value_millions: int
+    value_millions: float
     status: str
     provenance: List[Provenance]
-    prior_value_millions: Optional[int] = None
+    prior_value_millions: Optional[float] = None
     derivation: Optional[str] = None
 
     @property
