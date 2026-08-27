@@ -1,14 +1,17 @@
 # Adding a Company
 
 This guide walks through adding a new company to the quarterly income-statement
-Sankey generator. It reflects the patterns used to add Amazon (`AMZN`) and
-Alphabet (`GOOGL`) on top of the original Meta (`META`) implementation. Follow it
-in order; each step builds on the last.
+Sankey generator. It reflects the patterns used to add Amazon (`AMZN`),
+Alphabet (`GOOGL`), and JPMorgan (`JPM`) on top of the original Meta (`META`)
+implementation. Follow it in order; each step builds on the last.
 
 Meta is the reference for a company with **product/segment revenue**, Amazon for
-**many operating-cost lines + equity-method activity + sign-aware flows**, and
+**many operating-cost lines + equity-method activity + sign-aware flows**,
 Alphabet for **optional segment disclosure + concept/dimension drift across
-periods**. Pick whichever existing adapter is closest to your target and copy it.
+periods**, and JPM for a **bank income statement** (no cost-of-revenue /
+gross-profit bridge; net interest income + noninterest revenue → total net
+revenue → provision + noninterest expense + pre-tax). Pick whichever existing
+adapter is closest to your target and copy it.
 
 ## Mental model
 
@@ -138,7 +141,12 @@ Notes:
 
 - `gross_profit` is **derived automatically** by `normalize_meta` as
   `revenue - cost_of_revenue`. Do **not** add a `gross_profit` selector; just
-  ensure `revenue` and `cost_of_revenue` exist.
+  ensure `revenue` and `cost_of_revenue` exist. The derivation is **gated on a
+  `cost_of_revenue` selector**: companies without one (banks such as JPM) simply
+  get no `gross_profit` fact, and their layout/checks never reference it.
+  `render_svg` still reads `facts["revenue"]` for the source-provenance line, so
+  every company needs a key literally named `revenue` (JPM maps it to total net
+  revenue).
 - Fact **keys** are the contract between config, adapter checks, and adapter
   layout. Whatever keys you define here are exactly what you reference in your
   adapter's `build_checks` and `layout`.
@@ -215,7 +223,11 @@ shared `_check` helper.
 A layout returns `(list[Node], list[Ribbon])`.
 
 - `Node(key, x, y, height, color)` — a bar; `right == x + 22`. Heights scale from
-  values via `h_of(f, key)` (default `scale = 0.8/1000` USD-millions→px). Colors:
+  values via a per-adapter `scale` (USD-millions→px). `h_of(f, key)` uses a
+  default `0.8/1000`, but most adapters define their own local `h()`/`scale`
+  (Meta `3.3/1000`, JPM `7.5/1000`) so the tallest quarter fills the vertical
+  band — pick a scale from the **tallest column across the whole series**, not
+  one quarter, so bar thickness stays comparable across quarters. Colors:
   `BLUE` revenue, `GREEN` profit, `PINK` cost/expense.
 - `Ribbon(source_key, target_key, source_x, source_y, target_x, target_y, width, color)`
   — a flow. Widths must **balance**: the sum of a node's incoming widths equals
@@ -229,6 +241,14 @@ A layout returns `(list[Node], list[Ribbon])`.
   enforces this.
 - Column x-positions used so far: revenue segments ~190–210, revenue ~289–300,
   gross/cost ~479–486, operating + opex ~663, pre-tax/non-op/tax ~851, net ~873.
+  JPM uses its own five-column bank layout (~150/320/500/690/880).
+- **Vertical stacking.** With thick bars (a large `scale`), stack the nodes in a
+  column **contiguously by bar height** plus a small `GAP` (JPM uses `GAP=24`),
+  the way Meta and JPM do, so incoming/outgoing flows line up and the column
+  fills the band. A fixed pixel *stride* only works when bars are tiny; it makes
+  tall bars overlap. Start the top of the tallest column low enough (JPM
+  `TOP=250`) that the "above" label cards clear the header, and keep the bottom
+  above the source line at y≈950.
 
 ### Adapter fields that replace the old per-company dispatchers
 
@@ -253,7 +273,7 @@ dispatch branches to edit:
 In `src/stankey/companies/__init__.py`, add your module to `_ADAPTER_MODULES`:
 
 ```python
-_ADAPTER_MODULES = ("meta", "amazon", "alphabet", "<slug>")
+_ADAPTER_MODULES = ("meta", "amazon", "alphabet", "jpm", "<slug>")
 ```
 
 ## Step 4 — CLI: usually nothing to do
@@ -370,3 +390,29 @@ in the parsed set. Everything you map must be a USD duration fact.
 Every surprise above was found by parsing actual instances across multiple
 periods. A config that reconciles for one quarter can fail three years back.
 Always run the 20-quarter series before declaring done.
+
+**H. Banks have no cost-of-revenue / gross-profit bridge.**
+JPM's statement is `interest income − interest expense = net interest income`;
+`net interest income + noninterest revenue = total net revenue`;
+`total net revenue − provision − noninterest expense = pre-tax`;
+`pre-tax − tax = net income`. Do not force it into the tech template. Name the
+top-line key `revenue` (render reads `facts["revenue"]`), omit `cost_of_revenue`
+so gross profit is not derived, and write the bank identities in `build_checks`.
+JPM's interest-expense concept also drifts (`InterestExpenseOperating` in recent
+filings, `InterestExpense` in older ones) — handle with a `concepts` fallback
+(Pitfall A).
+
+**I. A wide label in a middle column can reach into the next column's cards.**
+`render_svg` places a middle-column node's card to its right; a long label (JPM's
+"Provision for credit losses") can then overlap a terminal card at the same
+height. Separate them **vertically** — drop the neighbouring node (JPM places
+income tax below the two cost cards) so the two right-placed cards never share a
+y-band. This is the same class of fix as Alphabet's non-operating card.
+
+**J. Sign still matters even without loss support.**
+JPM's layout guards against pre-tax/net losses (it raises rather than draw a
+misleading chart), but individual lines can still be negative — a **provision
+release** (negative provision for credit losses, common in 2021) reconciles fine
+because the identity holds with a negative term, and the flow renders from its
+magnitude with the sign shown in the label. Do not assume every component is
+positive even when the bottom line is.
