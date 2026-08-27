@@ -16,6 +16,11 @@ adapter is closest to your target and copy it.
 Micron (`MU`) is the reference for a **non-calendar 52/53-week fiscal year**, an
 annual-only expense line in Q4 derivation, and sign-aware gross/operating losses.
 
+Two goals run through every company and have their own short sections below:
+getting the **maximum reproducible time frame** (Step 7) and, where a company
+breaks revenue into components, showing a **stable, consistent breakdown**
+(Step 8).
+
 ## Mental model
 
 The pipeline is config-driven end to end:
@@ -362,6 +367,47 @@ with `--quarters 20` still contains exactly the 20 requested output quarters.
 
 Update `README.md` with a usage block for the new company.
 
+## Step 7 — Push for the maximum reproducible time frame
+
+Aim to generate as far back as the data honestly allows, not just 20 quarters.
+Run `discover-filings` with a large `--quarters` and read the error — it names
+the earliest missing quarter, so you can jump to the largest count that
+resolves. Then run `generate-series` **once** at that count; it walks
+newest→oldest and aborts at the first failing quarter, naming it, so rerun once
+at the count just below. (Don't loop the full series decrementing by one — each
+run re-downloads and re-renders everything.)
+
+Two kinds of stop are common and are **hard data limits**: the company hadn't
+filed yet, or an old filing's XBRL instance 404s (predates the naming the
+pipeline resolves). Those are final. A reconciliation or layout failure, by
+contrast, is usually a fixable adapter gap — extend the adapter rather than
+accept a shorter series. Probe single quarters near the wall
+(`generate-series TICKER --quarters 1 --from-quarter <Q> --fetch-sec`) to tell
+them apart.
+
+Q4 is derived (annual 10-K minus nine-month 10-Q), so a Q4 line only populates
+when its selector resolves in **both** sources; broaden `concepts` /
+`dimension_options` to cover renames across the two filings (Pitfalls A/B).
+
+## Step 8 — Revenue components: prefer a stable breakdown
+
+If a company splits revenue into components, show them — but pick the **coarsest
+breakdown that is tagged consistently across the era you display**, not the
+maximal per-filing detail. Finer product lines tend to be renamed and re-cut
+every few years, which produces gaps and a revenue column that changes shape
+frame to frame. For a series meant to be compared across quarters, a stable,
+consistent breakdown beats a granular but drifting one; prefer a coarser view
+that reconciles cleanly over deriving components you can't source cleanly.
+
+Practically: model each line as an optional selector, draw whichever are
+present, never mix a subtotal with its own children, and reconcile the drawn set
+(plus any hedging/intercompany line) to consolidated revenue. If the tagged
+lines don't sum, omit the revenue column for that quarter rather than drawing a
+partial set — an honest blank beats a wrong breakdown. When a breakdown is only
+available from some era onward, consider showing consolidated revenue alone
+before that, so the cutover reads as intentional. Verify the arithmetic per era
+(Step 0), including a derived Q4.
+
 ## Pitfalls learned the hard way
 
 **A. The consolidated revenue (or pre-tax) concept changes across periods.**
@@ -388,14 +434,22 @@ single-axis segment revenue even when the standalone quarter tags it.
 
 **D. Reconciliation and layout must both handle absent optional lines.**
 - `build_checks`: gate the optional identity's `check(...)` on the keys being
-  present (Step 2). Alphabet's segment identity also requires the
-  separately-tagged hedging line, because some quarters fold the hedging
+  present (Step 2). A revenue-components identity often also depends on a
+  separately-tagged hedging / intercompany line, because some quarters fold that
   adjustment into the consolidated total instead of tagging it — without the
-  tagged line the sum legitimately will not match, so do not enforce it.
-- `layout`: only draw a group when it is **complete**. Alphabet draws the segment
-  column only when **all three** segments are present; otherwise a lone tiny
-  segment (Other Bets kept its member name) would appear to feed the entire
-  revenue node. Suppress partial groups.
+  tagged line the sum legitimately will not match, so do not enforce it then.
+- `layout`: only draw a component group when the drawn set **reconciles** to the
+  total; otherwise a partial or non-summing breakdown would appear to feed the
+  entire revenue node. Suppress partial or non-reconciling groups and omit the
+  column (Step 8).
+
+**M. Revenue components drift and split differently across eras.**
+**M. Revenue components drift across eras.**
+The set of revenue lines a company reports gets renamed and re-cut every few
+years, and a finer breakdown often will not derive for Q4 (the annual and its
+nine-month filing use different names). Chasing maximal per-filing detail leads
+to a revenue column that changes shape frame to frame. Prefer the coarsest
+breakdown that is tagged consistently across the era you show — see Step 8.
 
 **E. Sign-aware flows.**
 Losses (negative operating/pre-tax/net) and tax **benefits** (negative income
