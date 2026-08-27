@@ -32,7 +32,6 @@ from ..render import (
     Node,
     Ribbon,
     _packed_flows,
-    h_of,
 )
 from . import CompanyAdapter, register
 
@@ -53,7 +52,11 @@ LABEL_KEYS = (
 
 def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     f = quarter.facts
-    scale = 0.8 / 1000.0
+    # Single series-wide scale sized so JPM's tallest column (net interest
+    # income + interest expense + noninterest revenue ~= $82B stacked) nearly
+    # fills the vertical band. All quarters share it, so bar thickness stays
+    # comparable across the series.
+    scale = 7.5 / 1000.0
 
     def width_value(value: float) -> float:
         return max(1.2, abs(value) * scale)
@@ -61,28 +64,19 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
     def width(key: str) -> float:
         return width_value(f[key].value_millions)
 
+    def h(key: str) -> float:
+        return width_value(f[key].value_millions)
+
     # This layout targets profitable quarters (JPM's normal case). A pre-tax or
     # net loss would need sign-aware flows like the Amazon/Alphabet adapters.
     if f["pretax_income"].value_millions < 0 or f["net_income"].value_millions < 0:
         raise ValueError("JPM layout does not yet support loss quarters")
 
-    # Side-placed label cards are ~53px tall and centred on their node, so
-    # vertically stacked nodes in a column must have their centres at least a
-    # card-height-plus-gap apart or the cards collide. Space the stacked cost /
-    # revenue nodes by centre using this stride, independent of the (often tiny)
-    # node bar heights.
-    STACK_STRIDE = 62.0
-    TOP = 300.0
-
-    def stacked(x: float, keys: list[str], top: float) -> dict:
-        """Place ``keys`` down a column, spacing their centres by STACK_STRIDE."""
-        placed = {}
-        center = top + h_of(f, keys[0]) / 2
-        for key in keys:
-            node_height = h_of(f, key)
-            placed[key] = Node(key, x, center - node_height / 2, node_height, _color(key))
-            center += STACK_STRIDE
-        return placed
+    # With thick bars, columns stack contiguously (like a real Sankey): each
+    # node begins a small gap below the previous one so incoming/outgoing flows
+    # line up. GAP separates logically distinct bars within a column.
+    TOP = 250.0
+    GAP = 10.0
 
     def _color(key: str) -> str:
         pink_keys = {
@@ -93,31 +87,44 @@ def layout(quarter: Quarter) -> Tuple[List[Node], List[Ribbon]]:
         }
         return PINK if key in pink_keys else (GREEN if key in {"pretax_income", "net_income"} else BLUE)
 
+    def stacked(x: float, keys: list[str], top: float) -> dict:
+        """Stack ``keys`` down a column by bar height, GAP apart."""
+        placed = {}
+        y = top
+        for key in keys:
+            node_height = h(key)
+            placed[key] = Node(key, x, y, node_height, _color(key))
+            y += node_height + GAP
+        return placed
+
     nodes: dict = {}
     # Column 1: gross interest income.
-    nodes["interest_income"] = Node("interest_income", 150, TOP, h_of(f, "interest_income"), BLUE)
-    # Column 2: net interest income, interest expense, noninterest revenue.
+    nodes["interest_income"] = Node("interest_income", 150, TOP, h("interest_income"), BLUE)
+    # Column 2: the two revenue inputs stack contiguously so they line up with
+    # the revenue node, then interest expense sits just below.
     nodes.update(
-        stacked(320, ["net_interest_income", "interest_expense", "noninterest_income"], TOP)
+        stacked(320, ["net_interest_income", "noninterest_income", "interest_expense"], TOP)
     )
-    # Column 3: total net revenue.
-    nodes["revenue"] = Node("revenue", 500, TOP, h_of(f, "revenue"), BLUE)
-    # Column 4: pre-tax income (top band) and the two expense lines. The expense
-    # cards are wide and right-placed, so they start well below the terminal
-    # column's cards to avoid horizontal competition with income tax / net
-    # income; the vertical separation keeps every card clear.
-    nodes["pretax_income"] = Node("pretax_income", 690, TOP, h_of(f, "pretax_income"), GREEN)
+    # Column 3: total net revenue (aligned with the top of column 2's revenue
+    # inputs).
+    nodes["revenue"] = Node("revenue", 500, TOP, h("revenue"), BLUE)
+    # Column 4: pre-tax income on top, then the two expense lines, contiguously.
     nodes.update(
-        stacked(690, ["provision_for_credit_losses", "noninterest_expense"], 470.0)
+        stacked(
+            690,
+            ["pretax_income", "provision_for_credit_losses", "noninterest_expense"],
+            TOP,
+        )
     )
-    # Column 5: net income (terminal, top band) with income tax just to its left
-    # and below so net income remains the rightmost terminal node.
-    nodes["net_income"] = Node("net_income", 880, TOP, h_of(f, "net_income"), GREEN)
+    # Column 5: net income (terminal) on top with income tax to its left. Income
+    # tax is dropped below column 4's provision card so the two right-placed
+    # cards never overlap; net income stays the rightmost terminal node.
+    nodes["net_income"] = Node("net_income", 880, TOP, h("net_income"), GREEN)
     nodes["income_tax"] = Node(
         "income_tax",
         826,
-        TOP + h_of(f, "net_income") / 2 + STACK_STRIDE - h_of(f, "income_tax") / 2,
-        h_of(f, "income_tax"),
+        nodes["noninterest_expense"].y + nodes["noninterest_expense"].height + 30.0,
+        h("income_tax"),
         PINK,
     )
 
